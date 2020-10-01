@@ -39,18 +39,14 @@ def compress_and_save(
 def load_folder(source_path: str, type_of_data: str, name: str) -> None:
     assert type_of_data in ['training', 'evaluation', 'validation']
     file_path_list = os.listdir(source_path)
-    X = np.zeros((len(file_path_list), 64, 64))
-    Y_gauss = np.zeros((len(file_path_list), 128, 128))
-    Y_count = np.zeros((len(file_path_list), 128, 128))
-    Y_amp = np.zeros((len(file_path_list), 128, 128))
     for i, file_name in enumerate(tqdm(file_path_list)):
         path = os.path.join(source_path, file_name)
         if path.endswith('.mat'):
             mat = load_mat(path)
-            X[i] = get_data(mat)
-            Y_gauss[i], Y_count[i], Y_amp[i] = get_label(mat)
-    compress_and_save(X, 'data', f'{name}_X', type_of_data)
-    compress_and_save(Y_gauss, 'labels', f'{name}_gauss', type_of_data)
-    compress_and_save(Y_count, 'labels', f'{name}_count', type_of_data)
-    compress_and_save(Y_amp, 'labels', f'{name}_amp', type_of_data)
+            X = get_data(mat)
+            Y_gauss, Y_count, Y_amp = get_label(mat)
+            compress_and_save(X, 'data', f'{name}_X_{i}', type_of_data)
+            compress_and_save(Y_gauss, 'labels', f'{name}_gauss_{i}', type_of_data)
+            compress_and_save(Y_count, 'labels', f'{name}_count_{i}', type_of_data)
+            compress_and_save(Y_amp, 'labels', f'{name}_amp_{i}', type_of_data)
     
