@@ -4,6 +4,7 @@ import scipy.io
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
+from preprocess import bin_ndarray
 
 class Loader():
 
@@ -47,14 +48,29 @@ class Loader():
         array = np.load(gzipped_file_data)
         return array
 
-    def load_array_folder(self, source_path: str) -> np.ndarray:
+    def load_array_folder(
+        self,
+        source_path: str,
+        type_of_data: str,
+        size_ratio: float = 1.0
+        ) -> np.ndarray:
+
+        assert type_of_data in ['data', 'labels']
         folder = os.path.join(source_path)
         file_names = os.listdir(folder)
 
         loaded_arrays = []
+        print(f'Loading {type_of_data} from storage... \n')
         for file_name in tqdm(file_names):
             fi = os.path.join(source_path, file_name)
-            loaded_arrays.append(self.decompress_load(fi))
+            array = self.decompress_load(fi)
+            # Downscale label array, to fit data shape
+            if not size_ratio == 1.0 and type_of_data == 'labels':
+                array = bin_ndarray(
+                    array,
+                    list(map(lambda x: int(x / size_ratio), array.shape))
+                )
+            loaded_arrays.append(array)
         out_array = np.array(loaded_arrays)
         out_array = np.expand_dims(out_array, -1)
         return out_array
