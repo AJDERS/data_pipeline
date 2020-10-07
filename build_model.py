@@ -310,7 +310,8 @@ def create_model(conf):
         name='down_block_2'
     )
 
-    # Encoder layer 2 32 x 32 x 128 > 16 x 16 x 256
+    # Encoder layer 2,
+    #                           ts/4 x ts/4 x 128 > ts/8 x ts/8 x 256
     e2, s2 = _down_block(
         e1,
         num_filters=num_filters*4,
@@ -328,7 +329,8 @@ def create_model(conf):
     if dropout_encoder_only:
         dropout_rate = None
 
-    # Conv layer 16 x 16 x 256 > 16 x 16 x 512
+    # Conv layer,
+    #                           ts/8 x ts/8 x 256 > ts/8 x ts/8 x 512
     conv0 = _resnet_block(
         e2,
         num_filters=num_filters*8,
@@ -340,7 +342,8 @@ def create_model(conf):
         name='middle_resnet'
     )
 
-    # Decoder layer 0 16 x 16 x 512 > 32 x 32 x 128 > 32 x 32 x 256
+    # Decoder layer 0,
+    #                           ts/8 x ts/8 x 512 > ts/4 x ts/4 x 128 > ts/4 x ts/4 x 256
     d0 = _up_block(
         conv0, ### e2???
         num_filters=num_filters*4,
@@ -360,7 +363,8 @@ def create_model(conf):
     elif skip_connection == 'add':
         Add(name='add_skip_1')([s2, d0])
 
-    # Decoder layer 1 32 x 32 x 256 > 64 x 64 x 64 > 64 x 64 x 128
+    # Decoder layer 1,
+    #                           ts/4 x ts/4 x 256 > ts/2 x ts/2 x 64 > ts/2 x ts/2 x 128
     d1 = _up_block(
         d0,
         num_filters=num_filters*2,
@@ -380,7 +384,8 @@ def create_model(conf):
     elif skip_connection == 'add':
         Add(name='add_skip_2')([s1, d1])
 
-    # Decoder layer 2 64 x 64 x 128 > 256 x 256 x 64 > 256 x 256 x 64
+    # Decoder layer 2,
+    #                           ts/2 x ts/2 x 128 > 2*ts x2*ts x 64 > 2*ts x 2*ts x 64
     d2 = _up_block(
         d1,
         num_filters=num_filters,
@@ -400,7 +405,7 @@ def create_model(conf):
     elif skip_connection == 'add':
         Add(name='add_skip_3')([s0, d2])
 
-    # Output layer 128 x 128 x 64 > 128 x 128 x 1
+    # Output layer 2*ts x 2*ts x 64 > ts x ts x 1
     output_data = Conv2D(
         filters=1,
         kernel_size=1,
