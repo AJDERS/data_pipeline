@@ -17,7 +17,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 now = datetime.now()
 dt_string = now.strftime("%d%m%Y_%H")
 logging.basicConfig(
-            filename=f'model_{dt_string}.log',
+            filename=f'output/model_{dt_string}.log',
             level=logging.INFO
         )
 
@@ -35,7 +35,7 @@ class Model():
         self.model = None
         self.loaded_model = False
         self.model_compiled = False
-        self.with_validation_gen = False
+        self.with_validation_gen = True
         self.train_X = None
         self.train_Y = None
         self.valid_X = None
@@ -62,22 +62,20 @@ class Model():
 
         return train_data_dirs, valid_data_dirs
 
-    def get_data(self, path):
-        return self.loader.load_array_folder(path)
-
     def generator(self, type_data, X, Y):
+        assert type_data in ['train', 'valid', 'eval']
         if type_data == 'train':
             preprocess = self.config['PREPROCESS_TRAIN']
             batch_size = preprocess.getint('BatchSize')
         elif type_data == 'valid':
-            preprocess = self.config['PREPROCESS_TEST']
+            preprocess = self.config['PREPROCESS_VALID']
             batch_size = preprocess.getint('BatchSize')
         else:
             preprocess = self.config['PREPROCESS_EVAL']
             batch_size = preprocess.getint('BatchSize')
-        
+        print(f'Defining {type_data} data generator... \n')
         generator = ImageDataGenerator(
-            preprocess.getfloat('Rescale')
+            rescale=preprocess.getfloat('Rescale')
         )
         flow_generator = generator.flow(X, Y, batch_size)
         return flow_generator
@@ -108,21 +106,20 @@ class Model():
             sp.axis('Off') # Don't show axes (or gridlines)
             sp.set_title(f'{name}')
             img = self.loader.decompress_load(img_path)
-            #img = mpimg.imread(img_path)
-            plt.imshow(img)
-        print(img.shape)
+            
 
-        plt.show()
+        plt.savefig(f'output/examples_{dt_string}.png')
 
     def build_model(self):
         if not self.loaded_model:
+            print('Building model... \n')
             self.model = NNModel.create_model(self.config)
-            self.model.summary()
         else:
             print('Model is already loaded.')
 
     def compile_model(self):
         if not self.loaded_model:
+            print('Compiling model... \n')
             self.model.compile(
                 loss='mse',
                 optimizer=RMSprop(lr=0.001),
@@ -141,13 +138,18 @@ class Model():
             self.compile_model()
 
         if not self.train_generator:
-            if not all([self.train_X, self.train_Y]):
+            if any(v is None for v in [self.train_X, self.train_Y]):
                 self.train_X = self.loader.load_array_folder(
-                    os.path.join(self.train_path, 'data')
+                    source_path = os.path.join(self.train_path,'data'),
+                    type_of_data = 'data'
                 )
+                
                 self.train_Y = self.loader.load_array_folder(
-                    os.path.join(self.train_path, 'labels')
+                    source_path = os.path.join(self.train_path, 'labels'),
+                    type_of_data = 'labels',
+                    size_ratio = self.config['PREPROCESS_TRAIN'].getint('SizeRatio')
                 )
+                
                 self.train_generator = self.generator(
                     'train',
                     self.train_X,
@@ -155,13 +157,19 @@ class Model():
                 )
 
         if not self.valid_generator:
-            if not all([self.valid_X, self.valid_Y]):
+            if any(v is None for v in [self.valid_X, self.valid_Y]):
                 self.valid_X = self.loader.load_array_folder(
-                    os.path.join(self.valid_path, 'data')
+                    os.path.join(self.valid_path, 'data'),
+                    type_of_data = 'data',
                 )
+
                 self.valid_Y = self.loader.load_array_folder(
-                    os.path.join(self.valid_path, 'labels')
+                    os.path.join(self.valid_path, 'labels'),
+                    type_of_data = 'labels',
+                    size_ratio = self.config['PREPROCESS_VALID'].getint('SizeRatio')
+
                 )
+
                 self.valid_generator = self.generator(
                     'valid',
                     self.valid_X,
@@ -172,31 +180,60 @@ class Model():
             # step_per_epoch * batch_size = # number of datapoints
             batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
             steps_per_epoch = int(self.train_X.shape[0] / batch_size)
-            print('steps per epoch', steps_per_epoch)
-            print('batch size', batch_size)
+            logging.info(f'steps per epoch: {steps_per_epoch}')
+            logging.info(f'batch size: {batch_size}')
             if not self.with_validation_gen:
+                print('Fitting model without validation generator... \n')
                 history = self.model.fit(
                     self.train_generator,
                     batch_size = batch_size,
-                    #steps_per_epoch=32,  
-                    epochs=10,#self.config['TRAINING'].getint('Epochs'),
-                    verbose=2,
+                    steps_per_epoch=steps_per_epoch,  
+                    epochs=self.config['TRAINING'].getint('Epochs'),
+                    verbose=1,
                     callbacks=[self.callback]
                 )
-                #logging.info(str(history))
+                self.broadcast(history)
+                self.model.save(f'model_{dt_string}')
                 return history
             else:
+                print('Fitting model with validation generator... \n')
                 history = self.model.fit(
                     self.train_generator,
                     steps_per_epoch=steps_per_epoch, 
                     epochs=self.config['TRAINING'].getint('Epochs'),
-                    verbose=2,
+                    verbose=1,
                     validation_data=self.valid_generator,
                     validation_steps=steps_per_epoch, # Note only uses half of validation data in each epoch
                     callbacks=[self.callback]
                 )
-                logging.info(str(history))
+                self.broadcast(history)
+                self.model.save(f'model_{dt_string}')
                 return history
-            self.model.save(f'model_{dt_string}')
         else:
-            print('Model is already loaded.')        
+            print('Model is already loaded.')
+
+    def illustrate_history(self, history):
+        # summarize history for accuracy
+        plt.plot(history.history['accuracy'])
+        plt.plot(history.history['val_accuracy'])
+        plt.title('model accuracy')
+        plt.ylabel('accuracy')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
+        plt.savefig(f'output/accuracy_{dt_string}.png')
+
+        # summarize history for loss
+        plt.plot(history.history['loss'])
+        plt.plot(history.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
+        plt.savefig(f'output/loss_{dt_string}.png')
+
+    def broadcast(self, history):
+        self.model.summary(print_fn=lambda x: logging.info(x + '\n'))
+        logging.info(history.history.keys())
+        for key in history.history.keys():
+            logging.info(f'History for {key}: \n')
+            logging.info(history.history[key])
