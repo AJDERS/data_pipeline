@@ -1,0 +1,55 @@
+= data_pipeline =
+
+== <code>loader_mat.py</code> ==
+
+Contains the class <code>Loader</code> which has methods for loading <code>.mat</code> files containing output MATLAB <code>Struct</code>’s generated during simulation and from the SARUS scanner.
+
+== <code>train.py</code> ==
+
+contains the class <code>Model</code> which provides a crude interface for:
+
+* (<code>load_mat</code>) Ingesting output of the <code>Loader</code> class of <code>loader_mat.py</code>.
+* (<code>print_img</code>) Visualizing data/labels.
+* (<code>illustrate_history</code>) Visualizing the metrics over training epochs.
+* (<code>fit_model</code>) If not done beforehand, either loads a pretrained model or builds, compiles, provides data generators and fits a model provided by the <code>build_model.py</code> script, see below.
+
+== <code>build_model.py</code> ==
+
+This script contains a crude Tensorflow implementation of UNet, see: [https://arxiv.org/abs/1505.04597 UNet]<br />
+with the hyperparameters set in <code>config.ini</code>.
+
+== <code>layers.py</code> ==
+
+Implements certain types of layers not currently present in Tensorflow, but which are part of the UNet neural network.
+
+== <code>run_pipeline.py</code> ==
+
+This script assumes you have a the following setup: * A config files, following the format of <code>config.ini</code>, '''all''' fields are required. * A directory which contains the following structure:
+
+<pre>storage ------- training --------- data  
+              |                  |  
+              |                  ---- labels  
+              |  
+              ---- validation --------- data  
+                                |  
+                                ------- labels</pre>
+'''In the future a <code>evaluation</code> folder with subfolders <code>data</code> and <code>labels</code> will be required to.''' * A directory which contains the following structure*:
+
+<pre>mat_folder ------- train --------- data ----- [.mat-files]
+              |                   
+              |  
+              ---- valid --------- data ----- [.mat-files]</pre>
+* '''Note the difference in folder structures, this is to ensure that the user does not interchange these folders.'''
+
+=== Example usage: ===
+
+<pre class="{bash}">python3 run_pipeline.py -conf 'config.ini' -s_dir 'storage' -m_dir 'dir/w/mat-files'</pre>
+This scripts does the following operations: * If the folder <code>storage/training/data/</code> is not empty, data from <code>dir/w/mat-files/train/data/</code> is loaded in using <code>Loader.load_mat_folder</code>. * If the folder <code>storage/validation/data/</code> is not empty, data from <code>dir/w/mat-files/valid/data/</code> is loaded in using <code>Loader.load_mat_folder</code>. * <code>Model.fit_model()</code> is executed, and broadcasts an execution log to a <code>.log</code> files contained in <code>output</code>, the naming format is: <code>model_{ddmmyyyy_hh}.log</code> with the date and hour of execution. * <code>Model.illustrate_history(history)</code> is executed, where <code>history</code> is the <code>tensorflow.Model.History</code> object of the fitted model. The plots are saved to <code>output</code>, the naming format is: <code>accuracy_{ddmmyyyy_hh}.log</code> and <code>loss_{ddmmyyyy_hh}.log</code> with the date and hour of execution. * <code>Model.print_img()</code> is executed and saves examples images of data to <code>output</code>, the naming format is: <code>examples_{ddmmyyyy_hh}.log</code> with the date and hour of execution.
+
+== TODO ==
+
+* A more flexible input shape handling, allowing for both single 3d data frames, and 4d data.
+* Do docstrings for all functionalities.
+* Automatic docstring broadcasting to wiki-page.
+* Broadcasting of examples should also be of labels, not only data.
+* The <code>Model.illustrate_history(history)</code> should be of all used metrics, not only <code>accuracy</code> and <code>loss</code>.
