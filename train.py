@@ -1,3 +1,9 @@
+"""
+This module contains a class called `Model` which implements an interface for 
+loading parsed ``.mat`` files, building, compiling, fitting and inspect the
+the results of tensorflow ``tensorflow.keras.models``. 
+"""
+
 import os
 import keras
 import logging
@@ -6,11 +12,13 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-#import unet_bk_ceus_skip as external_model
-import build_model as NNModel
+import unet as UNet
+from typing import Type
 from datetime import datetime
 from callback import Callback
 from loader_mat import Loader
+from tensorflow.keras.callbacks import History
+from tensorflow.keras.preprocessing.image import NumpyArrayIterator
 from tensorflow.keras.optimizers import RMSprop
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
@@ -22,6 +30,15 @@ logging.basicConfig(
         )
 
 class Model():
+    """
+    **This class loads, builds, compiles and fits tensorflow models.**
+
+    Furthermore it has methods for creating data generators for these models,
+    inspecting metrics over epochs, inspecting runtime information and input 
+    data. 
+
+    The specifications of the input data is set in ``config.ini``.
+    """
 
     def __init__(self, data_folder_path, config_path):
         self.config = configparser.ConfigParser()
@@ -43,7 +60,18 @@ class Model():
         self.train_generator = None
         self.valid_generator = None
 
-    def _get_data_dirs(self):
+    def _get_data_dirs(self) -> tuple:
+        """
+        **Returns directories to training/validation data.**
+
+        This is done based on the variables ``self.train_path`` and 
+        ``self.valid_path``
+
+        :returns: ``os.path.join(self.train_path, filename),
+                    os.path.join(self.train_path, filename)`` for all filenames.
+        :rtype: list
+        """
+
         # Directory with our training data arrays
         train_data = os.path.join(self.train_path, 'data')
         train_data_names = os.listdir(train_data)
@@ -62,7 +90,27 @@ class Model():
 
         return train_data_dirs, valid_data_dirs
 
-    def generator(self, type_data, X, Y):
+    def generator(self,
+        type_data: str,
+        X: np.ndarray,
+        Y: np.ndarray) -> Type[NumpyArrayIterator]:
+        """
+        **Returns a ``ImageDataGenerator.flow`` object**
+
+        Such an object is an iterator containing data/label matrices used in
+        training. The type of matrix are based on ``type_data``.
+
+        :param type_data: A string specifying which type of data the generator
+            generates.
+        :type type_data: ``str``.
+        :param X: An array containing the data matrices.
+        :type X: ``np.ndarray``.
+        :returns: A ``ImageGenerator.flow`` iterator object.
+        :rtype: ``NumpyArrayIterator``.
+
+        .. warning:: ``type_data`` must be either ``['train', 'valid', 'eval']``.
+        .. seealso:: `ImageDataGenerator source code <https://github.com/keras-team/keras-preprocessing/blob/master/keras_preprocessing/image/image_data_generator.py>`_
+        """
         assert type_data in ['train', 'valid', 'eval']
         if type_data == 'train':
             preprocess = self.config['PREPROCESS_TRAIN']
@@ -80,7 +128,16 @@ class Model():
         flow_generator = generator.flow(X, Y, batch_size)
         return flow_generator
 
-    def load_model(self, model_path):
+    def load_model(self, model_path: str) -> None:
+        """**This function loads a model from a given path.**
+
+        :param model_path: A directory containing a tensforflow models object.
+        :type model_path: ``str``.
+        :returns: A Keras model instance.
+        :rtype: ``tensorflow.keras.model.Model``.
+
+        .. note:: If a model is loaded ``self.model`` is set to ``True``.
+        """
         try:
             reconstructed_model = keras.models.load_model(model_path)
             self.loaded_model = True
@@ -89,7 +146,15 @@ class Model():
         except FileNotFoundError:
             return FileNotFoundError
 
-    def print_img(self):
+    def print_img(self) -> None:
+        """
+        **Saves a plot of 16 examples of input data.**
+
+        The destination folder is:
+        ``'output/examples_{dt_string}.png'``
+        where ``dt_string`` is the current data and hour in the format:
+        ``{ddmmyyyy-hh}``.
+        """
         nrows = 4
         ncols = 4
         fig = plt.gcf()
@@ -105,19 +170,29 @@ class Model():
             sp = plt.subplot(nrows, ncols, i + 1)
             sp.axis('Off') # Don't show axes (or gridlines)
             sp.set_title(f'{name}')
-            img = self.loader.decompress_load(img_path)
+            _ = self.loader.decompress_load(img_path)
             
-
         plt.savefig(f'output/examples_{dt_string}.png')
 
-    def build_model(self):
+    def build_model(self) -> None:
+        """
+        **This method builds a model if none is loaded.**
+
+        The build model is stored in ``self.model``, unless 
+        ``self.loaded_model == True``, see note of ``Model.load_model``.
+        """
         if not self.loaded_model:
             print('Building model... \n')
-            self.model = NNModel.create_model(self.config)
+            self.model = UNet.create_model(self.config)
         else:
             print('Model is already loaded.')
 
-    def compile_model(self):
+    def compile_model(self) -> None:
+        """
+        **This method compiles a model if none is loaded.**
+
+        .. note:: If a model is compiled ``self.model_compiled`` is set to ``True``.
+        """
         if not self.loaded_model:
             print('Compiling model... \n')
             self.model.compile(
@@ -129,8 +204,29 @@ class Model():
         else:
             print('Model is already loaded.')
 
-    def fit_model(self):
+    def fit_model(self) -> Type[History]:
+        """
+        **This function completes a full network pipeline.**
 
+        All of the below functionalities are completed if they are not already
+        executed. The execution history is based on the booleans mentioned in
+        ``Model.load_model``, ``Model.build_model``, and
+        ``~train.Model.compile``, and the existence of generators mentioned
+        in ``~train.Model.generator``.
+
+        First this function builds a model, then compiles it, make a training
+        and validation generator, fits the model and lastly broadcasts runtime
+        information to ``output/loggin_{dt_string}.log``, and metrics over epoch to
+        ``output/{metric}_{dt_string}.png``.
+
+        .. seealso:: ``Model.broadcasting`` and ``Model.illustrate_history``
+
+        :returns: A ``tensorflow.keras.History`` object. Its `History.history` attribute is a record of training loss values and metrics values at
+            successive epochs, as well as validation loss values and validation
+            metrics values (if applicable).
+
+        :rtype: `tensorflow.keras.History``
+        """
         if not self.model:
             self.build_model()
         
@@ -212,7 +308,19 @@ class Model():
         else:
             print('Model is already loaded.')
 
-    def illustrate_history(self, history):
+    def illustrate_history(self,
+        history: Type[History]) -> None:
+        """
+        **Generates plots of metrics over epochs.**
+
+        The metrics over epochs plots are saved to 
+        ``output/{metric}_{dt_string}.png``
+
+        :param history: A ``tensorflow.keras.History`` object. 
+            Its `History.history` attribute is a record of training loss values
+            and metrics values at successive epochs, as well as validation loss
+            values and validation metrics values (if applicable).
+        """
         # summarize history for accuracy
         plt.plot(history.history['accuracy'])
         plt.plot(history.history['val_accuracy'])
@@ -231,9 +339,34 @@ class Model():
         plt.legend(['train', 'test'], loc='upper left')
         plt.savefig(f'output/loss_{dt_string}.png')
 
-    def broadcast(self, history):
+    def broadcast(self,
+        history: Type[History]) -> None:
+        """
+        **This method broadcast training information to a log-file.**
+
+        First a model summary is logged, and then the training metrics
+        history is logged for each metric.
+
+        :param history: A ``tensorflow.keras.History`` object. 
+            Its `History.history` attribute is a record of training loss values
+            and metrics values at successive epochs, as well as validation loss
+            values and validation metrics values (if applicable).
+        """
         self.model.summary(print_fn=lambda x: logging.info(x + '\n'))
         logging.info(history.history.keys())
         for key in history.history.keys():
             logging.info(f'History for {key}: \n')
             logging.info(history.history[key])
+
+"""
+.. warning:: This script assumes you have a the following setup:
+     - A config file, following the format of `config.ini`, **all** fields are required.
+     - A directory which contains the following structure:
+     `storage/training/data`
+     `storage/training/labels`
+     `storage/validation/data`
+     `storage/validation/labels`
+     - A directory which contains the following structure:
+     `mat_folder/train/data/[.mat]`
+     `mat_folder/valid/data/[.mat]`
+"""
