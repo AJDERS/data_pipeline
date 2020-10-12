@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Conv2D, UpSampling2D, BatchNormalization, LeakyReLU, Concatenate, ReLU, Activation, \
     MaxPool2D, Conv2DTranspose, SeparableConv2D, Add, Dropout, AvgPool2D
-from layers.layers import SubPixel
+from ..layers.layers import SubPixel
 from tensorflow.keras.models import Model, Sequential
 
 def _activation(tensor, activation='lrelu', name=''):
