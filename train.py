@@ -15,8 +15,8 @@ import matplotlib.image as mpimg
 import models.unet as UNet
 from typing import Type
 from datetime import datetime
-from .util.callback import Callback
-from .util.loader_mat import Loader
+from util.callback import Callback
+from util.loader_mat import Loader
 from tensorflow.keras.callbacks import History
 from tensorflow.keras.preprocessing.image import NumpyArrayIterator
 from tensorflow.keras.optimizers import RMSprop
