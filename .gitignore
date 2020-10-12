@@ -2,3 +2,7 @@ storage/
 scat_005/
 output/
 model_*
+.vscode/
+*.ipynb
+test.*
+__pycache__/
