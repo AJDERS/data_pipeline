@@ -12,11 +12,11 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import unet as UNet
+import models.unet as UNet
 from typing import Type
 from datetime import datetime
-from callback import Callback
-from loader_mat import Loader
+from .util.callback import Callback
+from .util.loader_mat import Loader
 from tensorflow.keras.callbacks import History
 from tensorflow.keras.preprocessing.image import NumpyArrayIterator
 from tensorflow.keras.optimizers import RMSprop
