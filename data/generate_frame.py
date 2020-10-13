@@ -186,6 +186,21 @@ class FrameGenerator:
 
  
     def generate_single_frame(self, gaussian_map, index, mode):
+        """
+        **This function generates a single data, label pair and saves them.**
+
+        The frame is made and filled with scatterers, from which the label is
+        generated and saved.
+
+        :param gaussian_map: The gaussian map used for convolution.
+        :type gaussian_map: ``np.ndarray``
+        :param index: The execution index, see 
+            ``generate_frame.FrameGenerator.run``.
+        :type index: ``int``.
+        :param mode: A string specifying wether the frame is for training,
+            validation, evaluation.
+        :type mode: ``str``.
+        """
         frame = self._make_frame()
         frame_w_scat = self._place_scatterers(frame)
         output, label = self._generate_output_from_frame(
@@ -209,6 +224,16 @@ class FrameGenerator:
         )
 
     def run(self):
+        """
+        **Creates data, label pairs and saves them to ``data_folder_path``.**
+
+        All parameters are set in ``config.ini``.
+        First it tries to create the ``data_folder_path`` directory, and the
+        required subdirectories: 
+        ``(training/validation/evaluation)/(data/labels)``, after which the 
+        pairs are created using 
+        ``generate_frame.FrameGenerator.generate_single_frame``.
+        """
         self.container_dir = storage.make_storage_folder(
             self.data_folder_path
         )

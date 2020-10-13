@@ -211,8 +211,8 @@ class Model():
         All of the below functionalities are completed if they are not already
         executed. The execution history is based on the booleans mentioned in
         ``Model.load_model``, ``Model.build_model``, and
-        ``~train.Model.compile``, and the existence of generators mentioned
-        in ``~train.Model.generator``.
+        ``train.Model.compile``, and the existence of generators mentioned
+        in ``train.Model.generator``.
 
         First this function builds a model, then compiles it, make a training
         and validation generator, fits the model and lastly broadcasts runtime
