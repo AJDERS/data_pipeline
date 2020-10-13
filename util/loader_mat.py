@@ -33,11 +33,12 @@ class Loader():
         array: np.ndarray,
         data_type: str,
         name: str,
-        type_of_data: str
+        type_of_data: str,
+        container_dir: str = 'storage',
         ) -> None:
 
         parquet = gzip.GzipFile(
-            f'storage/{type_of_data}/{data_type}/{name}.npy.gz',
+            f'{container_dir}/{type_of_data}/{data_type}/{name}.npy.gz',
             'w'
         )
         np.save(file=parquet, arr=array)

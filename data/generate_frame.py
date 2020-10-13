@@ -3,9 +3,15 @@ This module contains a class called ``FrameGenerator`` which generates tensors
 with point scatterers placed in them. All specifications are set in ``config.ini``.
 """
 
+import configparser
+import multiprocessing
 import random as r
 import numpy as np
-import configparser
+from tqdm import tqdm
+from util import loader_mat
+from scipy.signal import convolve2d
+from joblib import Parallel, delayed
+from util import make_storage_folder as storage
 
 class FrameGenerator:
     """
@@ -15,9 +21,12 @@ class FrameGenerator:
     tensors while the data are tensors where the sparse tensors which are 
     convolved with a given point spread function.
     """
-    def __init__(self, config_path):
+    def __init__(self, config_path, data_folder_path):
+        self.data_folder_path = data_folder_path
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
+        self.num_data_train = self.config['DATA'].getint('NumDataTrain')
+        self.num_data_valid = self.config['DATA'].getint('NumDataValid')
         self.target_size = self.config['DATA'].getint('TargetSize')
         self.num_scatter = self.config['DATA'].getint('NumScatter')
         self.movement = self.config['DATA'].getboolean('Movement')
@@ -57,7 +66,9 @@ class FrameGenerator:
         ``MovementAngle`` set in ``config.ini``.
 
         :param previous_x: The previous x-coordinate of the scatterer.
+        :type previous_x: ``int``
         :param previous_y: The previous y-coordinate of the scatterer.
+        :type previous_y: ``int``
         :returns: x,y - which are the new coordinates of the scatterer.
         :rtype: ``tuple``
         """
@@ -75,7 +86,8 @@ class FrameGenerator:
         ``MovementAngle`` set in ``config.ini``.
 
         :param frame: The frame in which the scatterers are placed.
-        :returns frame: The updated frame with scatterers.
+        :type frame: ``np.ndarray``
+        :returns: The updated frame with scatterers.
         :rtype: ``np.ndarray``.
 
         .. warning:: If a scatterer leaves the frame its coordinates will be
@@ -88,8 +100,8 @@ class FrameGenerator:
                     
                     # If first time step, place randomly, else make movement.
                     if t == 0:
-                        x = r.randint(0, self.target_size)
-                        y = r.randint(0, self.target_size)
+                        x = r.randint(0, self.target_size-1)
+                        y = r.randint(0, self.target_size-1)
                     else:
                         previous_x = scat_pos_timeseries[t-1][0]
                         previous_y = scat_pos_timeseries[t-1][1]
@@ -102,9 +114,9 @@ class FrameGenerator:
                             x, y = np.nan, np.nan
 
                     # Check if scatter moved out of frame.
-                    if x < 0 or x > self.target_size:
+                    if x < 0 or x >= self.target_size:
                         x = np.nan
-                    if y < 0 or y > self.target_size:
+                    if y < 0 or y >= self.target_size:
                         y = np.nan
 
                     if all([type(x) == int, type(y) == int]):
@@ -121,4 +133,98 @@ class FrameGenerator:
                 frame[x][y] = 1.0
             return frame
             
-        
+    def _gaussian_map(self, sigma: float, mu: float) -> np.ndarray:
+        """
+        **Generates a gaussian map.**
+
+        This function creates a 2D gaussian map stored in a matrix.
+
+        :param sigma: The standard deviation of the gaussian map.
+        :type sigma: ``float``
+        :param mu: The mean of the gaussian map.
+        :type mu: ``float``
+        :returns: The gaussian map.
+        :rtype: ``np.ndarray``. 
+        """
+        x_coord, y_coord = np.meshgrid(
+            np.linspace(-1, 1, self.target_size-1),
+            np.linspace(-1, 1, self.target_size-1)
+        )
+        distance = np.sqrt((x_coord * x_coord) + (y_coord * y_coord))
+        gaussian_map = np.exp(-( (distance-mu)**2 / ( 2.0 * sigma**2 ) ) )
+        return gaussian_map
+
+    def _generate_output_from_frame(
+        self,
+        frame: np.ndarray,
+        gaussian_map: np.ndarray
+        ) -> np.ndarray:
+        """
+        **Generates output data from a frame by convolution.**
+
+        This function convolves the sparse tensor with a gaussian map to obtain
+        the training data. The non-convolved tensor is the label.
+
+        :param frame: The sparse tensor which is to be convolved.
+        :type frame: ``np.ndarray``. 
+        :param gaussian_map: The gaussian array which the tensor is convolved
+            with.
+        :type gaussian_map: ``np.ndarray``.
+        :returns: Convolved tensor.
+        :rtype: ``np.ndarray``.
+        """
+        output = np.zeros(frame.shape)
+        if self.movement:
+            for i in range(self.duration):
+                output[:,:,i] = convolve2d(frame[:,:,i], gaussian_map, 'same')
+            label = frame
+            return output, label
+        else:
+            output = convolve2d(frame, gaussian_map, 'same')
+            label = frame
+            return output, label
+
+ 
+    def generate_single_frame(self, gaussian_map, index, mode):
+        frame = self._make_frame()
+        frame_w_scat = self._place_scatterers(frame)
+        output, label = self._generate_output_from_frame(
+            frame_w_scat,
+            gaussian_map
+        )
+        loader = loader_mat.Loader()
+        loader.compress_and_save(
+            array=output,
+            data_type='data',
+            name=str(index).zfill(5),
+            type_of_data=mode,
+            container_dir=self.container_dir,
+        )
+        loader.compress_and_save(
+            array=label,
+            data_type='labels',
+            name=str(index).zfill(5),
+            type_of_data=mode,
+            container_dir=self.container_dir,
+        )
+
+    def run(self):
+        self.container_dir = storage.make_storage_folder(
+            self.data_folder_path
+        )
+        gaussian_map = self._gaussian_map(
+            self.config['DATA'].getfloat('GaussianSigma'),
+            self.config['DATA'].getfloat('GaussianMu')
+        )
+        num_cores = multiprocessing.cpu_count()
+        print('Making training data.')
+        Parallel(n_jobs=num_cores)(
+            delayed(self.generate_single_frame)
+                (gaussian_map, i, 'training') for i in tqdm(range(self.num_data_train))
+        )
+
+        print('Making validation data.')
+        Parallel(n_jobs=num_cores)(
+            delayed(self.generate_single_frame)
+                (gaussian_map, i, 'validation') for i in tqdm(range(self.num_data_valid))
+        )
