@@ -1,0 +1,194 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>data_pipeline &#8212; data_pipeline  documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <script src="_static/language_data.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="data-pipeline">
+<h1>data_pipeline<a class="headerlink" href="#data-pipeline" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="loader-mat-py">
+<h2><code class="docutils literal notranslate"><span class="pre">loader_mat.py</span></code><a class="headerlink" href="#loader-mat-py" title="Permalink to this headline">¶</a></h2>
+<p>Contains the class <code class="docutils literal notranslate"><span class="pre">Loader</span></code> which has methods for loading <code class="docutils literal notranslate"><span class="pre">.mat</span></code>
+files containing output MATLAB <code class="docutils literal notranslate"><span class="pre">Struct</span></code>’s generated during
+simulation and from the SARUS scanner.</p>
+</div>
+<div class="section" id="train-py">
+<h2><code class="docutils literal notranslate"><span class="pre">train.py</span></code><a class="headerlink" href="#train-py" title="Permalink to this headline">¶</a></h2>
+<p>contains the class <code class="docutils literal notranslate"><span class="pre">Model</span></code> which provides a crude interface for:</p>
+<ul class="simple">
+<li><p>(<code class="docutils literal notranslate"><span class="pre">load_mat</span></code>) Ingesting output of the <code class="docutils literal notranslate"><span class="pre">Loader</span></code> class of
+<code class="docutils literal notranslate"><span class="pre">loader_mat.py</span></code>.</p></li>
+<li><p>(<code class="docutils literal notranslate"><span class="pre">print_img</span></code>) Visualizing data/labels.</p></li>
+<li><p>(<code class="docutils literal notranslate"><span class="pre">illustrate_history</span></code>) Visualizing the metrics over training
+epochs.</p></li>
+<li><p>(<code class="docutils literal notranslate"><span class="pre">fit_model</span></code>) If not done beforehand, either loads a pretrained
+model or builds, compiles, provides data generators and fits a model
+provided by the <code class="docutils literal notranslate"><span class="pre">build_model.py</span></code> script, see below.</p></li>
+</ul>
+</div>
+<div class="section" id="build-model-py">
+<h2><code class="docutils literal notranslate"><span class="pre">build_model.py</span></code><a class="headerlink" href="#build-model-py" title="Permalink to this headline">¶</a></h2>
+<div class="line-block">
+<div class="line">This script contains a crude Tensorflow implementation of UNet, see:
+<a class="reference external" href="https://arxiv.org/abs/1505.04597">UNet</a></div>
+<div class="line">with the hyperparameters set in <code class="docutils literal notranslate"><span class="pre">config.ini</span></code>.</div>
+</div>
+</div>
+<div class="section" id="layers-py">
+<h2><code class="docutils literal notranslate"><span class="pre">layers.py</span></code><a class="headerlink" href="#layers-py" title="Permalink to this headline">¶</a></h2>
+<p>Implements certain types of layers not currently present in Tensorflow,
+but which are part of the UNet neural network.</p>
+</div>
+<div class="section" id="run-pipeline-py">
+<h2><code class="docutils literal notranslate"><span class="pre">run_pipeline.py</span></code><a class="headerlink" href="#run-pipeline-py" title="Permalink to this headline">¶</a></h2>
+<p>This script assumes you have a the following setup: * A config files,
+following the format of <code class="docutils literal notranslate"><span class="pre">config.ini</span></code>, <strong>all</strong> fields are required. *
+A directory which contains the following structure:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">storage</span> <span class="o">-------</span> <span class="n">training</span> <span class="o">---------</span> <span class="n">data</span>
+              <span class="o">|</span>                  <span class="o">|</span>
+              <span class="o">|</span>                  <span class="o">----</span> <span class="n">labels</span>
+              <span class="o">|</span>
+              <span class="o">----</span> <span class="n">validation</span> <span class="o">---------</span> <span class="n">data</span>
+                                <span class="o">|</span>
+                                <span class="o">-------</span> <span class="n">labels</span>
+</pre></div>
+</div>
+<p><strong>In the future a ``evaluation`` folder with subfolders ``data`` and
+``labels`` will be required to.</strong> * A directory which contains the
+following structure*:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">mat_folder</span> <span class="o">-------</span> <span class="n">train</span> <span class="o">---------</span> <span class="n">data</span> <span class="o">-----</span> <span class="p">[</span><span class="o">.</span><span class="n">mat</span><span class="o">-</span><span class="n">files</span><span class="p">]</span>
+              <span class="o">|</span>
+              <span class="o">|</span>
+              <span class="o">----</span> <span class="n">valid</span> <span class="o">---------</span> <span class="n">data</span> <span class="o">-----</span> <span class="p">[</span><span class="o">.</span><span class="n">mat</span><span class="o">-</span><span class="n">files</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>* <strong>Note the difference in folder structures, this is to ensure that
+the user does not interchange these folders.</strong></p>
+<div class="section" id="example-usage">
+<h3>Example usage:<a class="headerlink" href="#example-usage" title="Permalink to this headline">¶</a></h3>
+<div class="highlight-{bash} notranslate"><div class="highlight"><pre><span></span>python3 run_pipeline.py -conf &#39;config.ini&#39; -s_dir &#39;storage&#39; -m_dir &#39;dir/w/mat-files&#39;
+</pre></div>
+</div>
+<p>This scripts does the following operations: * If the folder
+<code class="docutils literal notranslate"><span class="pre">storage/training/data/</span></code> is not empty, data from
+<code class="docutils literal notranslate"><span class="pre">dir/w/mat-files/train/data/</span></code> is loaded in using
+<code class="docutils literal notranslate"><span class="pre">Loader.load_mat_folder</span></code>. * If the folder
+<code class="docutils literal notranslate"><span class="pre">storage/validation/data/</span></code> is not empty, data from
+<code class="docutils literal notranslate"><span class="pre">dir/w/mat-files/valid/data/</span></code> is loaded in using
+<code class="docutils literal notranslate"><span class="pre">Loader.load_mat_folder</span></code>. * <code class="docutils literal notranslate"><span class="pre">Model.fit_model()</span></code> is executed, and
+broadcasts an execution log to a <code class="docutils literal notranslate"><span class="pre">.log</span></code> files contained in <code class="docutils literal notranslate"><span class="pre">output</span></code>,
+the naming format is: <code class="docutils literal notranslate"><span class="pre">model_{ddmmyyyy_hh}.log</span></code> with the date and hour
+of execution. * <code class="docutils literal notranslate"><span class="pre">Model.illustrate_history(history)</span></code> is executed,
+where <code class="docutils literal notranslate"><span class="pre">history</span></code> is the <code class="docutils literal notranslate"><span class="pre">tensorflow.Model.History</span></code> object of the
+fitted model. The plots are saved to <code class="docutils literal notranslate"><span class="pre">output</span></code>, the naming format is:
+<code class="docutils literal notranslate"><span class="pre">accuracy_{ddmmyyyy_hh}.log</span></code> and <code class="docutils literal notranslate"><span class="pre">loss_{ddmmyyyy_hh}.log</span></code> with the
+date and hour of execution. * <code class="docutils literal notranslate"><span class="pre">Model.print_img()</span></code> is executed and
+saves examples images of data to <code class="docutils literal notranslate"><span class="pre">output</span></code>, the naming format is:
+<code class="docutils literal notranslate"><span class="pre">examples_{ddmmyyyy_hh}.log</span></code> with the date and hour of execution.</p>
+</div>
+</div>
+<div class="section" id="todo">
+<h2>TODO<a class="headerlink" href="#todo" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><p>A more flexible input shape handling, allowing for both single 3d
+data frames, and 4d data.</p></li>
+<li><p>Do docstrings for all functionalities.</p></li>
+<li><p>Automatic docstring broadcasting to wiki-page.</p></li>
+<li><p>Broadcasting of examples should also be of labels, not only data.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">Model.illustrate_history(history)</span></code> should be of all used
+metrics, not only <code class="docutils literal notranslate"><span class="pre">accuracy</span></code> and <code class="docutils literal notranslate"><span class="pre">loss</span></code>.</p></li>
+</ul>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">data_pipeline</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2020, Anders Jess Pedersen.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.2.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/README.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

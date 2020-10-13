@@ -15,6 +15,7 @@
     <script src="_static/language_data.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="data_pipeline" href="includeme.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -41,164 +42,21 @@
 <li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
 </ul>
 <div class="toctree-wrapper compound">
-</div>
-</div>
-<div class="section" id="module-data_pipeline.train">
-<span id="data-pipeline-train-model"></span><h2><code class="docutils literal notranslate"><span class="pre">data_pipeline.train.Model</span></code><a class="headerlink" href="#module-data_pipeline.train" title="Permalink to this headline">¶</a></h2>
-<p>This module contains a class called <cite>Model</cite> which implements an interface for
-loading parsed <code class="docutils literal notranslate"><span class="pre">.mat</span></code> files, building, compiling, fitting and inspect the
-the results of tensorflow <code class="docutils literal notranslate"><span class="pre">tensorflow.keras.models</span></code>.</p>
-<dl class="py class">
-<dt id="data_pipeline.train.Model">
-<em class="property">class </em><code class="sig-prename descclassname">data_pipeline.train.</code><code class="sig-name descname">Model</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">data_folder_path</span></em>, <em class="sig-param"><span class="n">config_path</span></em><span class="sig-paren">)</span><a class="headerlink" href="#data_pipeline.train.Model" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>This class loads, builds, compiles and fits tensorflow models.</strong></p>
-<p>Furthermore it has methods for creating data generators for these models,
-inspecting metrics over epochs, inspecting runtime information and input
-data.</p>
-<p>The specifications of the input data is set in <code class="docutils literal notranslate"><span class="pre">config.ini</span></code>.</p>
-<dl class="py method">
-<dt id="data_pipeline.train.Model.broadcast">
-<code class="sig-name descname">broadcast</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">history</span><span class="p">:</span> <span class="n">Type<span class="p">[</span>tensorflow.python.keras.callbacks.History<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#data_pipeline.train.Model.broadcast" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>This method broadcast training information to a log-file.</strong></p>
-<p>First a model summary is logged, and then the training metrics
-history is logged for each metric.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>history</strong> – A <code class="docutils literal notranslate"><span class="pre">tensorflow.keras.History</span></code> object.
-Its <cite>History.history</cite> attribute is a record of training loss values
-and metrics values at successive epochs, as well as validation loss
-values and validation metrics values (if applicable).</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt id="data_pipeline.train.Model.build_model">
-<code class="sig-name descname">build_model</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#data_pipeline.train.Model.build_model" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>This method builds a model if none is loaded.</strong></p>
-<p>The build model is stored in <code class="docutils literal notranslate"><span class="pre">self.model</span></code>, unless
-<code class="docutils literal notranslate"><span class="pre">self.loaded_model</span> <span class="pre">==</span> <span class="pre">True</span></code>, see note of <code class="docutils literal notranslate"><span class="pre">Model.load_model</span></code>.</p>
-</dd></dl>
-
-<dl class="py method">
-<dt id="data_pipeline.train.Model.compile_model">
-<code class="sig-name descname">compile_model</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#data_pipeline.train.Model.compile_model" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>This method compiles a model if none is loaded.</strong></p>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If a model is compiled <code class="docutils literal notranslate"><span class="pre">self.model_compiled</span></code> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt id="data_pipeline.train.Model.fit_model">
-<code class="sig-name descname">fit_model</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; Type<span class="p">[</span>tensorflow.python.keras.callbacks.History<span class="p">]</span><a class="headerlink" href="#data_pipeline.train.Model.fit_model" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>This function completes a full network pipeline.</strong></p>
-<p>All of the below functionalities are completed if they are not already
-executed. The execution history is based on the booleans mentioned in
-<code class="docutils literal notranslate"><span class="pre">Model.load_model</span></code>, <code class="docutils literal notranslate"><span class="pre">Model.build_model</span></code>, and
-<code class="docutils literal notranslate"><span class="pre">~train.Model.compile</span></code>, and the existence of generators mentioned
-in <code class="docutils literal notranslate"><span class="pre">~train.Model.generator</span></code>.</p>
-<p>First this function builds a model, then compiles it, make a training
-and validation generator, fits the model and lastly broadcasts runtime
-information to <code class="docutils literal notranslate"><span class="pre">output/loggin_{dt_string}.log</span></code>, and metrics over epoch to
-<code class="docutils literal notranslate"><span class="pre">output/{metric}_{dt_string}.png</span></code>.</p>
-<div class="admonition seealso">
-<p class="admonition-title">See also</p>
-<p><code class="docutils literal notranslate"><span class="pre">Model.broadcasting</span></code> and <code class="docutils literal notranslate"><span class="pre">Model.illustrate_history</span></code></p>
-</div>
-<dl class="field-list simple">
-<dt class="field-odd">Returns</dt>
-<dd class="field-odd"><p>A <code class="docutils literal notranslate"><span class="pre">tensorflow.keras.History</span></code> object. Its <cite>History.history</cite> attribute is a record of training loss values and metrics values at
-successive epochs, as well as validation loss values and validation
-metrics values (if applicable).</p>
-</dd>
-<dt class="field-even">Return type</dt>
-<dd class="field-even"><p><cite>tensorflow.keras.History`</cite></p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt id="data_pipeline.train.Model.generator">
-<code class="sig-name descname">generator</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">type_data</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">X</span><span class="p">:</span> <span class="n">numpy.ndarray</span></em>, <em class="sig-param"><span class="n">Y</span><span class="p">:</span> <span class="n">numpy.ndarray</span></em><span class="sig-paren">)</span> &#x2192; Type<span class="p">[</span>tensorflow.python.keras.preprocessing.image.NumpyArrayIterator<span class="p">]</span><a class="headerlink" href="#data_pipeline.train.Model.generator" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>Returns a ``ImageDataGenerator.flow`` object</strong></p>
-<p>Such an object is an iterator containing data/label matrices used in
-training. The type of matrix are based on <code class="docutils literal notranslate"><span class="pre">type_data</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>type_data</strong> (<code class="docutils literal notranslate"><span class="pre">str</span></code>.) – A string specifying which type of data the generator
-generates.</p></li>
-<li><p><strong>X</strong> (<code class="docutils literal notranslate"><span class="pre">np.ndarray</span></code>.) – An array containing the data matrices.</p></li>
+<p class="caption"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="includeme.html">data_pipeline</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="includeme.html#data-pipeline-util-loader-mat-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.util.loader_mat.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="includeme.html#data-pipeline-train-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.train.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="includeme.html#data-pipeline-data-generate-frame-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.data.generate_frame.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="includeme.html#data-pipeline-models-unet-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.models.unet.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="includeme.html#data-pipeline-layers-layers-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.layers.layers.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="includeme.html#data-pipeline-util-run-pipeline-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.util.run_pipeline.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="includeme.html#data-pipeline-config-config-ini"><code class="docutils literal notranslate"><span class="pre">data_pipeline/config/config.ini</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="includeme.html#todo">TODO</a></li>
 </ul>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>A <code class="docutils literal notranslate"><span class="pre">ImageGenerator.flow</span></code> iterator object.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">NumpyArrayIterator</span></code>.</p>
-</dd>
-</dl>
-<div class="admonition warning">
-<p class="admonition-title">Warning</p>
-<p><code class="docutils literal notranslate"><span class="pre">type_data</span></code> must be either <code class="docutils literal notranslate"><span class="pre">['train',</span> <span class="pre">'valid',</span> <span class="pre">'eval']</span></code>.</p>
+</li>
+</ul>
 </div>
-<div class="admonition seealso">
-<p class="admonition-title">See also</p>
-<p><a class="reference external" href="https://github.com/keras-team/keras-preprocessing/blob/master/keras_preprocessing/image/image_data_generator.py">ImageDataGenerator source code</a></p>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt id="data_pipeline.train.Model.illustrate_history">
-<code class="sig-name descname">illustrate_history</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">history</span><span class="p">:</span> <span class="n">Type<span class="p">[</span>tensorflow.python.keras.callbacks.History<span class="p">]</span></span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#data_pipeline.train.Model.illustrate_history" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>Generates plots of metrics over epochs.</strong></p>
-<p>The metrics over epochs plots are saved to
-<code class="docutils literal notranslate"><span class="pre">output/{metric}_{dt_string}.png</span></code></p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>history</strong> – A <code class="docutils literal notranslate"><span class="pre">tensorflow.keras.History</span></code> object.
-Its <cite>History.history</cite> attribute is a record of training loss values
-and metrics values at successive epochs, as well as validation loss
-values and validation metrics values (if applicable).</p>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py method">
-<dt id="data_pipeline.train.Model.load_model">
-<code class="sig-name descname">load_model</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">model_path</span><span class="p">:</span> <span class="n">str</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#data_pipeline.train.Model.load_model" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>This function loads a model from a given path.</strong></p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters</dt>
-<dd class="field-odd"><p><strong>model_path</strong> (<code class="docutils literal notranslate"><span class="pre">str</span></code>.) – A directory containing a tensforflow models object.</p>
-</dd>
-<dt class="field-even">Returns</dt>
-<dd class="field-even"><p>A Keras model instance.</p>
-</dd>
-<dt class="field-odd">Return type</dt>
-<dd class="field-odd"><p><code class="docutils literal notranslate"><span class="pre">tensorflow.keras.model.Model</span></code>.</p>
-</dd>
-</dl>
-<div class="admonition note">
-<p class="admonition-title">Note</p>
-<p>If a model is loaded <code class="docutils literal notranslate"><span class="pre">self.model</span></code> is set to <code class="docutils literal notranslate"><span class="pre">True</span></code>.</p>
-</div>
-</dd></dl>
-
-<dl class="py method">
-<dt id="data_pipeline.train.Model.print_img">
-<code class="sig-name descname">print_img</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#data_pipeline.train.Model.print_img" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>Saves a plot of 16 examples of input data.</strong></p>
-<p>The destination folder is:
-<code class="docutils literal notranslate"><span class="pre">'output/examples_{dt_string}.png'</span></code>
-where <code class="docutils literal notranslate"><span class="pre">dt_string</span></code> is the current data and hour in the format:
-<code class="docutils literal notranslate"><span class="pre">{ddmmyyyy-hh}</span></code>.</p>
-</dd></dl>
-
-</dd></dl>
-
 </div>
 </div>
 
@@ -219,11 +77,16 @@ where <code class="docutils literal notranslate"><span class="pre">dt_string</sp
 
 
 <h3>Navigation</h3>
+<p class="caption"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="includeme.html">data_pipeline</a></li>
+</ul>
 
 <div class="relations">
 <h3>Related Topics</h3>
 <ul>
   <li><a href="#">Documentation overview</a><ul>
+      <li>Next: <a href="includeme.html" title="next chapter">data_pipeline</a></li>
   </ul></li>
 </ul>
 </div>

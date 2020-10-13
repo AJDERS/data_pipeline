@@ -8,13 +8,8 @@ Indices and tables
 * :ref:`modindex`
 * :ref:`search`
 
-
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Contents
    
-
-``data_pipeline.train.Model``
-=============================
-.. automodule:: data_pipeline.train
-   :members:
+   includeme.rst
