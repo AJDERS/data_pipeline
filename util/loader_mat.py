@@ -4,7 +4,7 @@ import scipy.io
 import numpy as np
 from PIL import Image
 from tqdm import tqdm
-from preprocess import bin_ndarray
+from .preprocess import bin_ndarray
 
 class Loader():
 
