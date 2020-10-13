@@ -1,6 +1,6 @@
 = data_pipeline =
 
-== <code>loader_mat.py</code> ==
+== <code>util/loader_mat.py</code> ==
 
 Contains the class <code>Loader</code> which has methods for loading <code>.mat</code> files containing output MATLAB <code>Struct</code>’s generated during simulation and from the SARUS scanner.
 
@@ -13,16 +13,16 @@ contains the class <code>Model</code> which provides a crude interface for:
 * (<code>illustrate_history</code>) Visualizing the metrics over training epochs.
 * (<code>fit_model</code>) If not done beforehand, either loads a pretrained model or builds, compiles, provides data generators and fits a model provided by the <code>build_model.py</code> script, see below.
 
-== <code>build_model.py</code> ==
+== <code>models/unet.py</code> ==
 
 This script contains a crude Tensorflow implementation of UNet, see: [https://arxiv.org/abs/1505.04597 UNet]<br />
 with the hyperparameters set in <code>config.ini</code>.
 
-== <code>layers.py</code> ==
+== <code>layers/layers.py</code> ==
 
 Implements certain types of layers not currently present in Tensorflow, but which are part of the UNet neural network.
 
-== <code>run_pipeline.py</code> ==
+== <code>util/run_pipeline.py</code> ==
 
 This script assumes you have a the following setup: * A config files, following the format of <code>config.ini</code>, '''all''' fields are required. * A directory which contains the following structure:
 

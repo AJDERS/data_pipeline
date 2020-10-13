@@ -34,14 +34,14 @@
             
   <div class="section" id="data-pipeline">
 <h1>data_pipeline<a class="headerlink" href="#data-pipeline" title="Permalink to this headline">¶</a></h1>
-<div class="section" id="data-pipeline-util-loader-mat-py">
-<h2><code class="docutils literal notranslate"><span class="pre">data_pipeline.util.loader_mat.py</span></code><a class="headerlink" href="#data-pipeline-util-loader-mat-py" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="util-loader-mat-py">
+<h2><code class="docutils literal notranslate"><span class="pre">util/loader_mat.py</span></code><a class="headerlink" href="#util-loader-mat-py" title="Permalink to this headline">¶</a></h2>
 <p>Contains the class <code class="docutils literal notranslate"><span class="pre">Loader</span></code> which has methods for loading <code class="docutils literal notranslate"><span class="pre">.mat</span></code>
 files containing output MATLAB <code class="docutils literal notranslate"><span class="pre">Struct</span></code>’s generated during
 simulation and from the SARUS scanner.</p>
 </div>
-<div class="section" id="data-pipeline-train-py">
-<h2><code class="docutils literal notranslate"><span class="pre">data_pipeline.train.py</span></code><a class="headerlink" href="#data-pipeline-train-py" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="train-py">
+<h2><code class="docutils literal notranslate"><span class="pre">train.py</span></code><a class="headerlink" href="#train-py" title="Permalink to this headline">¶</a></h2>
 <p>Contains the class <code class="docutils literal notranslate"><span class="pre">Model</span></code> which provides a crude interface for:</p>
 <ul class="simple">
 <li><p>(<code class="docutils literal notranslate"><span class="pre">load_mat</span></code>) Ingesting output of the <code class="docutils literal notranslate"><span class="pre">Loader</span></code> class of
@@ -54,7 +54,7 @@ model or builds, compiles, provides data generators and fits a model
 provided by the <code class="docutils literal notranslate"><span class="pre">build_model.py</span></code> script, see below.</p></li>
 </ul>
 <div class="section" id="module-data_pipeline.train">
-<span id="data-pipeline-train-model"></span><h3><code class="docutils literal notranslate"><span class="pre">data_pipeline.train.Model</span></code><a class="headerlink" href="#module-data_pipeline.train" title="Permalink to this headline">¶</a></h3>
+<span id="train-model"></span><h3><code class="docutils literal notranslate"><span class="pre">train.Model</span></code><a class="headerlink" href="#module-data_pipeline.train" title="Permalink to this headline">¶</a></h3>
 <p>This module contains a class called <cite>Model</cite> which implements an interface for
 loading parsed <code class="docutils literal notranslate"><span class="pre">.mat</span></code> files, building, compiling, fitting and inspect the
 the results of tensorflow <code class="docutils literal notranslate"><span class="pre">tensorflow.keras.models</span></code>.</p>
@@ -211,16 +211,12 @@ where <code class="docutils literal notranslate"><span class="pre">dt_string</sp
 
 </div>
 </div>
-<div class="section" id="data-pipeline-data-generate-frame-py">
-<h2><code class="docutils literal notranslate"><span class="pre">data_pipeline.data.generate_frame.py</span></code><a class="headerlink" href="#data-pipeline-data-generate-frame-py" title="Permalink to this headline">¶</a></h2>
-<p>Contains a class <code class="docutils literal notranslate"><span class="pre">FrameGenerator</span></code> which generates tensors for training
-neural networks. All parameters are set in <code class="docutils literal notranslate"><span class="pre">config.ini</span></code>.</p>
-<ul class="simple">
-<li><p>(<code class="docutils literal notranslate"><span class="pre">generate_single_frame</span></code>) Generates a single pair of data, label and saves it.</p></li>
-<li><p>(<code class="docutils literal notranslate"><span class="pre">run</span></code>) Generates a number of such pairs.</p></li>
-</ul>
+<div class="section" id="data-generate-frame-py">
+<h2><code class="docutils literal notranslate"><span class="pre">data/generate_frame.py</span></code><a class="headerlink" href="#data-generate-frame-py" title="Permalink to this headline">¶</a></h2>
+<p>Contains a class <code class="docutils literal notranslate"><span class="pre">FrameGenerator</span></code> which generates pairs of data, label
+tensors for training neural networks.</p>
 <div class="section" id="module-data_pipeline.data.generate_frame">
-<span id="data-pipeline-data-generate-frame-framegenerator"></span><h3><code class="docutils literal notranslate"><span class="pre">data_pipeline.data.generate_frame.FrameGenerator</span></code><a class="headerlink" href="#module-data_pipeline.data.generate_frame" title="Permalink to this headline">¶</a></h3>
+<span id="data-generate-frame-model"></span><h3><code class="docutils literal notranslate"><span class="pre">data.generate_frame.Model</span></code><a class="headerlink" href="#module-data_pipeline.data.generate_frame" title="Permalink to this headline">¶</a></h3>
 <p>This module contains a class called <code class="docutils literal notranslate"><span class="pre">FrameGenerator</span></code> which generates tensors
 with point scatterers placed in them. All specifications are set in <code class="docutils literal notranslate"><span class="pre">config.ini</span></code>.</p>
 <dl class="py class">
@@ -265,21 +261,21 @@ pairs are created using
 
 </div>
 </div>
-<div class="section" id="data-pipeline-models-unet-py">
-<h2><code class="docutils literal notranslate"><span class="pre">data_pipeline.models.unet.py</span></code><a class="headerlink" href="#data-pipeline-models-unet-py" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="models-unet-py">
+<h2><code class="docutils literal notranslate"><span class="pre">models/unet.py</span></code><a class="headerlink" href="#models-unet-py" title="Permalink to this headline">¶</a></h2>
 <div class="line-block">
 <div class="line">This script contains a crude Tensorflow implementation of UNet, see:
 <a class="reference external" href="https://arxiv.org/abs/1505.04597">UNet</a></div>
 <div class="line">with the hyperparameters set in <code class="docutils literal notranslate"><span class="pre">config.ini</span></code>.</div>
 </div>
 </div>
-<div class="section" id="data-pipeline-layers-layers-py">
-<h2><code class="docutils literal notranslate"><span class="pre">data_pipeline.layers.layers.py</span></code><a class="headerlink" href="#data-pipeline-layers-layers-py" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="layers-layers-py">
+<h2><code class="docutils literal notranslate"><span class="pre">layers/layers.py</span></code><a class="headerlink" href="#layers-layers-py" title="Permalink to this headline">¶</a></h2>
 <p>Implements certain types of layers not currently present in Tensorflow,
 but which are part of the UNet neural network.</p>
 </div>
-<div class="section" id="data-pipeline-util-run-pipeline-py">
-<h2><code class="docutils literal notranslate"><span class="pre">data_pipeline.util.run_pipeline.py</span></code><a class="headerlink" href="#data-pipeline-util-run-pipeline-py" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="util-run-pipeline-py">
+<h2><code class="docutils literal notranslate"><span class="pre">util/run_pipeline.py</span></code><a class="headerlink" href="#util-run-pipeline-py" title="Permalink to this headline">¶</a></h2>
 <p>This script assumes you have a the following setup: * A config files,
 following the format of <code class="docutils literal notranslate"><span class="pre">config.ini</span></code>, <strong>all</strong> fields are required. *
 A directory which contains the following structure:</p>
@@ -323,179 +319,6 @@ date and hour of execution. * <code class="docutils literal notranslate"><span c
 saves examples images of data to <code class="docutils literal notranslate"><span class="pre">output</span></code>, the naming format is:
 <code class="docutils literal notranslate"><span class="pre">examples_{ddmmyyyy_hh}.log</span></code> with the date and hour of execution.</p>
 </div>
-<div class="section" id="data-pipeline-config-config-ini">
-<h2><code class="docutils literal notranslate"><span class="pre">data_pipeline/config/config.ini</span></code><a class="headerlink" href="#data-pipeline-config-config-ini" title="Permalink to this headline">¶</a></h2>
-<p>To run a complete pipeline all fields are required.</p>
-<div class="highlight-default notranslate"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
- 2
- 3
- 4
- 5
- 6
- 7
- 8
- 9
-10
-11
-12
-13
-14
-15
-16
-17
-18
-19
-20
-21
-22
-23
-24
-25
-26
-27
-28
-29
-30
-31
-32
-33
-34
-35
-36
-37
-38
-39
-40
-41
-42
-43
-44
-45
-46
-47
-48
-49
-50
-51
-52
-53
-54
-55
-56
-57
-58
-59
-60
-61
-62
-63
-64
-65
-66
-67
-68
-69
-70
-71
-72
-73
-74
-75
-76
-77
-78
-79
-80
-81
-82
-83
-84</pre></div></td><td class="code"><div class="highlight"><pre><span></span>        <span class="c1"># This section is for data generation, i.e. data_pipeline.data.generate_frame</span>
-<span class="p">[</span><span class="n">DATA</span><span class="p">]</span>
-<span class="c1"># Number of training data, label pairs.</span>
-<span class="n">NumDataTrain</span> <span class="o">=</span> <span class="mi">1000</span>
-<span class="c1"># Number of validation data, label pairs.</span>
-<span class="n">NumDataValid</span> <span class="o">=</span> <span class="mi">500</span>
-<span class="c1"># Size of tensors.</span>
-<span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
-<span class="c1"># Number of scatterers in tensors.</span>
-<span class="n">NumScatter</span> <span class="o">=</span> <span class="mi">5</span>
-<span class="c1"># Indication of tensor is 3D or 4D.</span>
-<span class="n">Movement</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="c1"># Speed of scatterers.</span>
-<span class="n">MovementVelocity</span> <span class="o">=</span> <span class="mi">10</span>
-<span class="c1"># How many frames there are in the time-axis.</span>
-<span class="n">MovementDuration</span> <span class="o">=</span> <span class="mi">10</span>
-<span class="c1"># The angle along which the scatterers are moving.</span>
-<span class="n">MovementAngle</span> <span class="o">=</span> <span class="mi">90</span>
-<span class="c1"># The parameters for the gaussian map.</span>
-<span class="n">GaussianSigma</span> <span class="o">=</span> <span class="mf">0.1</span>
-<span class="n">GaussianMu</span> <span class="o">=</span> <span class="mf">0.0</span>
-
-
-        <span class="c1"># This section is for training parameters.</span>
-<span class="p">[</span><span class="n">TRAINING</span><span class="p">]</span>
-<span class="c1"># Number of training epochs.</span>
-<span class="n">Epochs</span> <span class="o">=</span> <span class="mi">15</span>
-
-
-        <span class="c1"># This section is for parameters relating to preprocessing </span>
-        <span class="c1"># of training data.</span>
-<span class="p">[</span><span class="n">PREPROCESS_TRAIN</span><span class="p">]</span>
-<span class="c1"># Ratio between size of data and labels: data_size/label_size</span>
-<span class="n">SizeRatio</span> <span class="o">=</span> <span class="mi">2</span>
-<span class="c1"># Rescaling factor when generator loads.</span>
-<span class="n">Rescale</span> <span class="o">=</span> <span class="mf">1.0</span>
-<span class="c1"># Size of tensors.</span>
-<span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
-<span class="c1"># Size of batches.</span>
-<span class="n">BatchSize</span> <span class="o">=</span> <span class="mi">32</span>
-
-
-        <span class="c1"># This section is for parameters relating to preprocessing </span>
-        <span class="c1"># of validation data.</span>
-<span class="p">[</span><span class="n">PREPROCESS_VALID</span><span class="p">]</span>
-<span class="c1"># Ratio between size of data and labels: data_size/label_size</span>
-<span class="n">SizeRatio</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="c1"># Rescaling factor when generator loads.</span>
-<span class="n">Rescale</span> <span class="o">=</span> <span class="mf">1.0</span> 
-<span class="c1"># Size of tensors.</span>
-<span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
-<span class="c1"># Size of batches.</span>
-<span class="n">BatchSize</span> <span class="o">=</span> <span class="mi">16</span>
-
-
-        <span class="c1"># This section is for parameters relating to preprocessing </span>
-        <span class="c1"># of evaluation data.</span>
-<span class="p">[</span><span class="n">PREPROCESS_EVAL</span><span class="p">]</span>
-<span class="c1"># Ratio between size of data and labels: data_size/label_size</span>
-<span class="n">SizeRatio</span> <span class="o">=</span> <span class="mi">1</span>
-<span class="c1"># Rescaling factor when generator loads.</span>
-<span class="n">Rescale</span> <span class="o">=</span> <span class="mf">1.0</span> 
-<span class="c1"># Size of tensors.</span>
-<span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
-<span class="c1"># Size of batches.</span>
-
-
-        <span class="c1"># This section is for parameters relating the model. ATM these are</span>
-        <span class="c1"># tailored to the UNet implementation.</span>
-<span class="p">[</span><span class="n">MODEL</span><span class="p">]</span>
-<span class="n">NumFilter</span> <span class="o">=</span> <span class="mi">64</span>
-<span class="n">Padding</span> <span class="o">=</span> <span class="n">same</span>
-<span class="n">OutputActivation</span> <span class="o">=</span> <span class="n">sigmoid</span>
-<span class="n">UpSampling</span> <span class="o">=</span> <span class="n">subpixel</span>
-<span class="n">DownSampling</span> <span class="o">=</span> <span class="n">maxpool</span>
-<span class="n">Activation</span> <span class="o">=</span> <span class="n">lrelu</span>
-<span class="n">Conv1DLater</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="n">Initializer</span> <span class="o">=</span> <span class="n">glorot_uniform</span>
-<span class="n">BatchNorm</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="n">Shortcut</span> <span class="o">=</span> <span class="kc">True</span>
-<span class="n">DropOutRate</span> <span class="o">=</span> <span class="mf">0.3</span>
-<span class="n">DropOutWarning</span> <span class="o">=</span> <span class="kc">False</span> 
-<span class="n">SkipConnection</span> <span class="o">=</span> <span class="n">add</span>
-<span class="n">DropOutEncoderOnly</span> <span class="o">=</span> <span class="kc">False</span>
-</pre></div>
-</td></tr></table></div>
-</div>
 <div class="section" id="todo">
 <h2>TODO<a class="headerlink" href="#todo" title="Permalink to this headline">¶</a></h2>
 <ul class="simple">
@@ -530,13 +353,12 @@ metrics, not only <code class="docutils literal notranslate"><span class="pre">a
 <p class="caption"><span class="caption-text">Contents</span></p>
 <ul class="current">
 <li class="toctree-l1 current"><a class="current reference internal" href="#">data_pipeline</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#data-pipeline-util-loader-mat-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.util.loader_mat.py</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#data-pipeline-train-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.train.py</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#data-pipeline-data-generate-frame-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.data.generate_frame.py</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#data-pipeline-models-unet-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.models.unet.py</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#data-pipeline-layers-layers-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.layers.layers.py</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#data-pipeline-util-run-pipeline-py"><code class="docutils literal notranslate"><span class="pre">data_pipeline.util.run_pipeline.py</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="#data-pipeline-config-config-ini"><code class="docutils literal notranslate"><span class="pre">data_pipeline/config/config.ini</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#util-loader-mat-py"><code class="docutils literal notranslate"><span class="pre">util/loader_mat.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#train-py"><code class="docutils literal notranslate"><span class="pre">train.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#data-generate-frame-py"><code class="docutils literal notranslate"><span class="pre">data/generate_frame.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#models-unet-py"><code class="docutils literal notranslate"><span class="pre">models/unet.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#layers-layers-py"><code class="docutils literal notranslate"><span class="pre">layers/layers.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#util-run-pipeline-py"><code class="docutils literal notranslate"><span class="pre">util/run_pipeline.py</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#todo">TODO</a></li>
 </ul>
 </li>
