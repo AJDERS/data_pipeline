@@ -38,6 +38,17 @@ tensors for training neural networks.
 .. automodule:: data_pipeline.data.generate_frame
    :members:
 
+``util/generator.py``
+---------------------
+
+Contains a class ``DataGenerator`` which yields pairs of data, label
+tensors for training neural networks.
+
+``data.generator.DataGenerator``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: data_pipeline.util.DataGenerator
+   :members:
+
 ``models/unet.py``
 ------------------
 

@@ -130,14 +130,14 @@ metrics values (if applicable).</p>
 
 <dl class="py method">
 <dt id="data_pipeline.train.Model.generator">
-<code class="sig-name descname">generator</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">type_data</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">X</span><span class="p">:</span> <span class="n">numpy.ndarray</span></em>, <em class="sig-param"><span class="n">Y</span><span class="p">:</span> <span class="n">numpy.ndarray</span></em><span class="sig-paren">)</span> &#x2192; Type<span class="p">[</span>tensorflow.python.keras.preprocessing.image.NumpyArrayIterator<span class="p">]</span><a class="headerlink" href="#data_pipeline.train.Model.generator" title="Permalink to this definition">¶</a></dt>
-<dd><p><strong>Returns a ``ImageDataGenerator.flow`` object</strong></p>
+<code class="sig-name descname">generator</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">mode</span><span class="p">:</span> <span class="n">str</span></em>, <em class="sig-param"><span class="n">X</span><span class="p">:</span> <span class="n">numpy.ndarray</span></em>, <em class="sig-param"><span class="n">Y</span><span class="p">:</span> <span class="n">numpy.ndarray</span></em><span class="sig-paren">)</span> &#x2192; Generator<span class="p">[</span>numpy.ndarray<span class="p">, </span>None<span class="p">, </span>None<span class="p">]</span><a class="headerlink" href="#data_pipeline.train.Model.generator" title="Permalink to this definition">¶</a></dt>
+<dd><p><strong>Returns a DataGenerator.flow() generator object</strong></p>
 <p>Such an object is an iterator containing data/label matrices used in
-training. The type of matrix are based on <code class="docutils literal notranslate"><span class="pre">type_data</span></code>.</p>
+training. The type of matrix are based on <code class="docutils literal notranslate"><span class="pre">mode</span></code>.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>type_data</strong> (<code class="docutils literal notranslate"><span class="pre">str</span></code>.) – A string specifying which type of data the generator
+<li><p><strong>mode</strong> (<code class="docutils literal notranslate"><span class="pre">str</span></code>.) – A string specifying which type of data the generator
 generates.</p></li>
 <li><p><strong>X</strong> (<code class="docutils literal notranslate"><span class="pre">np.ndarray</span></code>.) – An array containing the data matrices.</p></li>
 </ul>
@@ -151,11 +151,12 @@ generates.</p></li>
 </dl>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
-<p><code class="docutils literal notranslate"><span class="pre">type_data</span></code> must be either <code class="docutils literal notranslate"><span class="pre">['train',</span> <span class="pre">'valid',</span> <span class="pre">'eval']</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">mode</span></code> must be either
+<code class="docutils literal notranslate"><span class="pre">['training',</span> <span class="pre">'validation',</span> <span class="pre">'evaluation']</span></code>.</p>
 </div>
 <div class="admonition seealso">
 <p class="admonition-title">See also</p>
-<p><a class="reference external" href="https://github.com/keras-team/keras-preprocessing/blob/master/keras_preprocessing/image/image_data_generator.py">ImageDataGenerator source code</a></p>
+<p><code class="docutils literal notranslate"><span class="pre">util.generator.DataGenerator</span></code>.</p>
 </div>
 </dd></dl>
 
@@ -260,6 +261,14 @@ pairs are created using
 
 </div>
 </div>
+<div class="section" id="util-generator-py">
+<h2><code class="docutils literal notranslate"><span class="pre">util/generator.py</span></code><a class="headerlink" href="#util-generator-py" title="Permalink to this headline">¶</a></h2>
+<p>Contains a class <code class="docutils literal notranslate"><span class="pre">DataGenerator</span></code> which yields pairs of data, label
+tensors for training neural networks.</p>
+<div class="section" id="data-generator-datagenerator">
+<h3><code class="docutils literal notranslate"><span class="pre">data.generator.DataGenerator</span></code><a class="headerlink" href="#data-generator-datagenerator" title="Permalink to this headline">¶</a></h3>
+</div>
+</div>
 <div class="section" id="models-unet-py">
 <h2><code class="docutils literal notranslate"><span class="pre">models/unet.py</span></code><a class="headerlink" href="#models-unet-py" title="Permalink to this headline">¶</a></h2>
 <div class="line-block">
@@ -322,75 +331,143 @@ saves examples images of data to <code class="docutils literal notranslate"><spa
 <h2><code class="docutils literal notranslate"><span class="pre">config/config.ini</span></code><a class="headerlink" href="#config-config-ini" title="Permalink to this headline">¶</a></h2>
 <p>When running a full pipeline all fields are required in the config file.
 Below an example config file can be seen.</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># This section is for data generation, i.e. data_pipeline.data.generate_frame</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># This section is for data generation, i.e. data_pipeline.data.generate_frame</span>
 <span class="p">[</span><span class="n">DATA</span><span class="p">]</span>
 <span class="c1"># Number of training data, label pairs.</span>
 <span class="n">NumDataTrain</span> <span class="o">=</span> <span class="mi">1000</span>
+
 <span class="c1"># Number of validation data, label pairs.</span>
 <span class="n">NumDataValid</span> <span class="o">=</span> <span class="mi">500</span>
+
 <span class="c1"># Size of tensors.</span>
 <span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
+
 <span class="c1"># Number of scatterers in tensors.</span>
 <span class="n">NumScatter</span> <span class="o">=</span> <span class="mi">5</span>
+
 <span class="c1"># Indication of tensor is 3D or 4D.</span>
 <span class="n">Movement</span> <span class="o">=</span> <span class="kc">True</span>
+
 <span class="c1"># Speed of scatterers.</span>
 <span class="n">MovementVelocity</span> <span class="o">=</span> <span class="mi">10</span>
+
 <span class="c1"># How many frames there are in the time-axis.</span>
 <span class="n">MovementDuration</span> <span class="o">=</span> <span class="mi">10</span>
+
 <span class="c1"># The angle along which the scatterers are moving.</span>
 <span class="n">MovementAngle</span> <span class="o">=</span> <span class="mi">90</span>
+
 <span class="c1"># The parameters for the gaussian map.</span>
 <span class="n">GaussianSigma</span> <span class="o">=</span> <span class="mf">0.1</span>
 <span class="n">GaussianMu</span> <span class="o">=</span> <span class="mf">0.0</span>
 
 
-        <span class="c1"># This section is for training parameters.</span>
+<span class="c1"># This section is for training parameters.</span>
 <span class="p">[</span><span class="n">TRAINING</span><span class="p">]</span>
 <span class="c1"># Number of training epochs.</span>
-<span class="n">Epochs</span> <span class="o">=</span> <span class="mi">15</span>
+<span class="n">Epochs</span> <span class="o">=</span> <span class="mi">100</span>
 
 
-        <span class="c1"># This section is for parameters relating to preprocessing </span>
-        <span class="c1"># of training data.</span>
+<span class="c1"># This section is for parameters relating to preprocessing </span>
+<span class="c1"># of training data.</span>
 <span class="p">[</span><span class="n">PREPROCESS_TRAIN</span><span class="p">]</span>
-<span class="c1"># Ratio between size of data and labels: data_size/label_size</span>
-<span class="n">SizeRatio</span> <span class="o">=</span> <span class="mi">2</span>
+
+<span class="c1"># Ratio between size of data and labels: label_size/data_size</span>
+<span class="n">SizeRatio</span> <span class="o">=</span> <span class="mi">1</span>
+
 <span class="c1"># Rescaling factor when generator loads.</span>
 <span class="n">Rescale</span> <span class="o">=</span> <span class="mf">1.0</span>
+
 <span class="c1"># Size of tensors.</span>
 <span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
+
 <span class="c1"># Size of batches.</span>
 <span class="n">BatchSize</span> <span class="o">=</span> <span class="mi">32</span>
 
+<span class="c1"># Shuffle data when loading.</span>
+<span class="n">Shuffle</span> <span class="o">=</span> <span class="kc">True</span>
 
-        <span class="c1"># This section is for parameters relating to preprocessing </span>
-        <span class="c1"># of validation data.</span>
+<span class="c1"># Amount of noise added to frames (dB)</span>
+<span class="n">NoiseDB</span> <span class="o">=</span> <span class="mi">6</span>
+
+<span class="c1"># Range of rotation of images</span>
+<span class="n">RotationRange</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="c1"># Number of scatterers which are removed from each batch, to simulate out of</span>
+<span class="c1"># plane movement. Number of scatterers in a batch is given as:</span>
+<span class="c1"># BatchSize * NumScatter * Duration.</span>
+<span class="c1"># If set to &quot;None&quot; is automatically set to BatchSize * Duration, i.e. on</span>
+<span class="c1"># average it happens once in every time-series.</span>
+<span class="n">OutOfPlaneScat</span> <span class="o">=</span> <span class="kc">None</span>
+ 
+
+
+<span class="c1"># This section is for parameters relating to preprocessing </span>
+<span class="c1"># of validation data.</span>
 <span class="p">[</span><span class="n">PREPROCESS_VALID</span><span class="p">]</span>
-<span class="c1"># Ratio between size of data and labels: data_size/label_size</span>
+<span class="c1"># Ratio between size of data and labels: label_size/data_size</span>
 <span class="n">SizeRatio</span> <span class="o">=</span> <span class="mi">1</span>
+
 <span class="c1"># Rescaling factor when generator loads.</span>
 <span class="n">Rescale</span> <span class="o">=</span> <span class="mf">1.0</span> 
+
 <span class="c1"># Size of tensors.</span>
 <span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
+
 <span class="c1"># Size of batches.</span>
 <span class="n">BatchSize</span> <span class="o">=</span> <span class="mi">16</span>
 
+<span class="c1"># Shuffle data when loading.</span>
+<span class="n">Shuffle</span> <span class="o">=</span> <span class="kc">True</span>
 
-        <span class="c1"># This section is for parameters relating to preprocessing </span>
-        <span class="c1"># of evaluation data.</span>
+<span class="c1"># Amount of noise added to frames (dB)</span>
+<span class="n">NoiseDB</span> <span class="o">=</span> <span class="mi">6</span>
+
+<span class="c1"># Range of rotation of images</span>
+<span class="n">RotationRange</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="c1"># Number of scatterers which are removed from each batch, to simulate out of</span>
+<span class="c1"># plane movement. Number of scatterers in a batch is given as:</span>
+<span class="c1"># BatchSize * NumScatter * Duration.</span>
+<span class="c1"># If set to &quot;None&quot; is automatically set to BatchSize * Duration, i.e. on</span>
+<span class="c1"># average it happens once in every time-series.</span>
+<span class="n">OutOfPlaneScat</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="c1"># This section is for parameters relating to preprocessing </span>
+<span class="c1"># of evaluation data.</span>
 <span class="p">[</span><span class="n">PREPROCESS_EVAL</span><span class="p">]</span>
-<span class="c1"># Ratio between size of data and labels: data_size/label_size</span>
+<span class="c1"># Ratio between size of data and labels: label_size/data_size</span>
 <span class="n">SizeRatio</span> <span class="o">=</span> <span class="mi">1</span>
+
 <span class="c1"># Rescaling factor when generator loads.</span>
 <span class="n">Rescale</span> <span class="o">=</span> <span class="mf">1.0</span> 
+
 <span class="c1"># Size of tensors.</span>
 <span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
+
 <span class="c1"># Size of batches.</span>
+<span class="n">BatchSize</span> <span class="o">=</span> <span class="mi">16</span>
+
+<span class="c1"># Shuffle data when loading.</span>
+<span class="n">Shuffle</span> <span class="o">=</span> <span class="kc">True</span>
+
+<span class="c1"># Amount of noise added to frames (dB)</span>
+<span class="n">NoiseDB</span> <span class="o">=</span> <span class="mi">6</span>
+
+<span class="c1"># Range of rotation of images</span>
+<span class="n">RotationRange</span> <span class="o">=</span> <span class="mi">0</span>
+
+<span class="c1"># Number of scatterers which are removed from each batch, to simulate out of</span>
+<span class="c1"># plane movement. Number of scatterers in a batch is given as:</span>
+<span class="c1"># BatchSize * NumScatter * Duration.</span>
+<span class="c1"># If set to &quot;None&quot; is automatically set to BatchSize * Duration, i.e. on</span>
+<span class="c1"># average it happens once in every time-series.</span>
+<span class="n">OutOfPlaneScat</span> <span class="o">=</span> <span class="kc">None</span>
 
 
-        <span class="c1"># This section is for parameters relating the model. ATM these are</span>
-        <span class="c1"># tailored to the UNet implementation.</span>
+<span class="c1"># This section is for parameters relating the model. ATM these are</span>
+<span class="c1"># tailored to the UNet implementation.</span>
 <span class="p">[</span><span class="n">MODEL</span><span class="p">]</span>
 <span class="n">NumFilter</span> <span class="o">=</span> <span class="mi">64</span>
 <span class="n">Padding</span> <span class="o">=</span> <span class="n">same</span>
