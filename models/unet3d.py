@@ -4,7 +4,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import Input, Conv3D, UpSampling2D, BatchNormalization, LeakyReLU, Concatenate, ReLU, Activation, \
     MaxPool3D, Conv3DTranspose, SeparableConv2D, Add, Dropout, AvgPool2D
 from tensorflow.keras.models import Model, Sequential
-from .layers.layers import SubPixel
+from .layers.layers import SubPixel3D
 
 
 def _activation(tensor, activation='lrelu', name=''):
@@ -166,7 +166,7 @@ def _up_block(
     kernel_size=3,
     padding='same',
     up_sampling='simple',
-    scale=(2, 2),
+    scale=(2, 2, 2),
     activation='lrelu',
     shortcut=True,
     dropout_rate=None,
@@ -218,7 +218,7 @@ def _up_block(
 
     elif up_sampling == 'subpixel':
         if not conv_1d_later:
-            tensor = SubPixel(scale=scale)(tensor)
+            tensor = SubPixel3D(scale=scale)(tensor)
             tensor = Conv3D(
                 filters=num_filters,
                 kernel_size=1,
@@ -234,10 +234,10 @@ def _up_block(
                 kernel_initializer=initializer
             )(tensor)
 
-            tensor = SubPixel(scale=scale)(tensor)
+            tensor = SubPixel3D(scale=scale)(tensor)
 
     elif up_sampling == 'simple_subpixel':
-        tensor = SubPixel(scale=scale)(tensor)
+        tensor = SubPixel3D(scale=scale)(tensor)
 
     elif up_sampling == 'conv_subpixel':
         tensor = Conv3D(
@@ -247,7 +247,7 @@ def _up_block(
             kernel_initializer=initializer
         )(tensor)
 
-        tensor = SubPixel(scale=scale)(tensor)
+        tensor = SubPixel3D(scale=scale)(tensor)
     else:
         raise ValueError(
             'up_sampling should be one of '
@@ -337,7 +337,7 @@ def create_model(conf):
     #                           ts/8 x ts/8 x 256 > ts/8 x ts/8 x 512
     conv0 = _resnet_block(
         e2,
-        num_filters=num_filters*8,
+        num_filters=num_filters*16, # 8
         activation=activation,
         initializer=initializer,
         dropout_rate=dropout_rate,
@@ -349,8 +349,8 @@ def create_model(conf):
     # Decoder layer 0,
     #                           ts/8 x ts/8 x 512 > ts/4 x ts/4 x 128 > ts/4 x ts/4 x 256
     d0 = _up_block(
-        conv0, ### e2???
-        num_filters=num_filters*4,
+        e2, ### e2???
+        num_filters=num_filters*8, # 4
         activation=activation,
         initializer=initializer,
         conv_1d_later=conv_1d_later,
@@ -371,7 +371,7 @@ def create_model(conf):
     #                           ts/4 x ts/4 x 256 > ts/2 x ts/2 x 64 > ts/2 x ts/2 x 128
     d1 = _up_block(
         d0,
-        num_filters=num_filters*2,
+        num_filters=num_filters*4, # 2
         activation=activation,
         initializer=initializer,
         conv_1d_later=conv_1d_later,
@@ -392,7 +392,7 @@ def create_model(conf):
     #                           ts/2 x ts/2 x 128 > 2*ts x2*ts x 64 > 2*ts x 2*ts x 64
     d2 = _up_block(
         d1,
-        num_filters=num_filters,
+        num_filters=num_filters*2, # 1
         activation=activation,
         initializer=initializer,
         conv_1d_later=conv_1d_later,
