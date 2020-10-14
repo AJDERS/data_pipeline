@@ -9,13 +9,21 @@ from keras.utils.generic_utils import get_custom_objects
 class SubPixel3D(Layer):
     # Sub-pixel convolution layer.
     # See https://arxiv.org/abs/1609.05158
+    # Simply perform SubPixel for each time-step frame.
     def __init__(self, scale, trainable=False, **kwargs):
         if not (type(scale) == tuple or type(scale) == list):
             scale = (scale[0], scale[0])
         self.scale = scale
         super().__init__(trainable=trainable, **kwargs)
 
-    def call(self, t):
+    def call(self, tensor):
+        stack = tf.unstack(tensor, axis=3)
+        for i, tensor_2d in enumerate(stack):
+            stack[i] = self.subpixel2d_routine(tensor_2d)
+        tensor = tf.stack(stack, axis=3)
+        return tensor
+
+    def subpixel2d_routine(self, t):
         r = self.scale
         shape = t.shape.as_list()
         # shape = K.shape(t)
