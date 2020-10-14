@@ -12,7 +12,6 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import models.unet as UNet
 from typing import Type, Generator
 from datetime import datetime
 from util.callback import Callback
@@ -172,7 +171,12 @@ class Model():
         """
         if not self.loaded_model:
             print('Building model... \n')
-            self.model = UNet.create_model(self.config)
+            if self.config['DATA'].getboolean('Movement'):
+                import models.unet3d as UNet3D
+                self.model = UNet3D.create_model(self.config)
+            else:
+                import models.unet as UNet
+                self.model = UNet.create_model(self.config)
         else:
             print('Model is already loaded.')
 
