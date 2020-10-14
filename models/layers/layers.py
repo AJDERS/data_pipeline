@@ -16,35 +16,39 @@ class SubPixel3D(Layer):
         self.scale = scale
         super().__init__(trainable=trainable, **kwargs)
 
-    def call(self, tensor):
-        stack = tf.unstack(tensor, axis=3)
-        for i, tensor_2d in enumerate(stack):
-            stack[i] = self.subpixel2d_routine(tensor_2d)
-        tensor = tf.stack(stack, axis=3)
-        return tensor
-
-    def subpixel2d_routine(self, t):
+    def call(self, t):
         r = self.scale
         shape = t.shape.as_list()
         # shape = K.shape(t)
         new_shape = self.compute_output_shape(shape)
         H = shape[1]
         W = shape[2]
+        T = shape[3]
         C = new_shape[-1]
-        t = tf.reshape(t, [-1, H, W, r[0], r[1], C])
+        t = tf.reshape(t, [-1, H, W, T, r[0], r[1], r[2], C])
         # Here we are different from Equation 4 from the paper. That equation
         # is equivalent to switching 3 and 4 in `perm`. But I feel my
         # implementation is more natural.
-        t = tf.transpose(t, perm=[0, 1, 3, 2, 4, 5])  # S, H, r, H, r, C
-        t = tf.reshape(t, [-1, H * r[0], W * r[1], C])
+        # perm = S, H, r, H, r, T, r, C
+        t = tf.transpose(t, perm=[0, 1, 4, 2, 5, 3, 6, 7])
+        t = tf.reshape(t, [-1, H * r[0], W * r[1], T * r[2], C])
         return t
 
     def compute_output_shape(self, input_shape):
         r = self.scale
         H = input_shape[1]
         W = input_shape[2]
-        rrC = input_shape[3]
-        return tuple([input_shape[0], H * r[0], W * r[1], rrC // (r[0] * r[1])])
+        T = input_shape[3]
+        rrC = input_shape[4]
+        return tuple(
+            [
+                input_shape[0],
+                H * r[0],
+                W * r[1],
+                T * r[2],
+                rrC // (r[0] * r[1] * r[2])
+            ]
+        )
 
     def get_config(self):
         config = super().get_config()
