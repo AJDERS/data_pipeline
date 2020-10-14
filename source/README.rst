@@ -106,6 +106,13 @@ date and hour of execution. \* ``Model.print_img()`` is executed and
 saves examples images of data to ``output``, the naming format is:
 ``examples_{ddmmyyyy_hh}.log`` with the date and hour of execution.
 
+``config/config.ini``
+---------------------
+When running a full pipeline all fields are required in the config file.
+Below an example config file can be seen.
+
+.. literalinclude:: ../config/config.ini
+
 TODO
 ----
 
