@@ -318,6 +318,97 @@ date and hour of execution. * <code class="docutils literal notranslate"><span c
 saves examples images of data to <code class="docutils literal notranslate"><span class="pre">output</span></code>, the naming format is:
 <code class="docutils literal notranslate"><span class="pre">examples_{ddmmyyyy_hh}.log</span></code> with the date and hour of execution.</p>
 </div>
+<div class="section" id="config-config-ini">
+<h2><code class="docutils literal notranslate"><span class="pre">config/config.ini</span></code><a class="headerlink" href="#config-config-ini" title="Permalink to this headline">¶</a></h2>
+<p>When running a full pipeline all fields are required in the config file.
+Below an example config file can be seen.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>        <span class="c1"># This section is for data generation, i.e. data_pipeline.data.generate_frame</span>
+<span class="p">[</span><span class="n">DATA</span><span class="p">]</span>
+<span class="c1"># Number of training data, label pairs.</span>
+<span class="n">NumDataTrain</span> <span class="o">=</span> <span class="mi">1000</span>
+<span class="c1"># Number of validation data, label pairs.</span>
+<span class="n">NumDataValid</span> <span class="o">=</span> <span class="mi">500</span>
+<span class="c1"># Size of tensors.</span>
+<span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
+<span class="c1"># Number of scatterers in tensors.</span>
+<span class="n">NumScatter</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="c1"># Indication of tensor is 3D or 4D.</span>
+<span class="n">Movement</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="c1"># Speed of scatterers.</span>
+<span class="n">MovementVelocity</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="c1"># How many frames there are in the time-axis.</span>
+<span class="n">MovementDuration</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="c1"># The angle along which the scatterers are moving.</span>
+<span class="n">MovementAngle</span> <span class="o">=</span> <span class="mi">90</span>
+<span class="c1"># The parameters for the gaussian map.</span>
+<span class="n">GaussianSigma</span> <span class="o">=</span> <span class="mf">0.1</span>
+<span class="n">GaussianMu</span> <span class="o">=</span> <span class="mf">0.0</span>
+
+
+        <span class="c1"># This section is for training parameters.</span>
+<span class="p">[</span><span class="n">TRAINING</span><span class="p">]</span>
+<span class="c1"># Number of training epochs.</span>
+<span class="n">Epochs</span> <span class="o">=</span> <span class="mi">15</span>
+
+
+        <span class="c1"># This section is for parameters relating to preprocessing </span>
+        <span class="c1"># of training data.</span>
+<span class="p">[</span><span class="n">PREPROCESS_TRAIN</span><span class="p">]</span>
+<span class="c1"># Ratio between size of data and labels: data_size/label_size</span>
+<span class="n">SizeRatio</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="c1"># Rescaling factor when generator loads.</span>
+<span class="n">Rescale</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="c1"># Size of tensors.</span>
+<span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
+<span class="c1"># Size of batches.</span>
+<span class="n">BatchSize</span> <span class="o">=</span> <span class="mi">32</span>
+
+
+        <span class="c1"># This section is for parameters relating to preprocessing </span>
+        <span class="c1"># of validation data.</span>
+<span class="p">[</span><span class="n">PREPROCESS_VALID</span><span class="p">]</span>
+<span class="c1"># Ratio between size of data and labels: data_size/label_size</span>
+<span class="n">SizeRatio</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="c1"># Rescaling factor when generator loads.</span>
+<span class="n">Rescale</span> <span class="o">=</span> <span class="mf">1.0</span> 
+<span class="c1"># Size of tensors.</span>
+<span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
+<span class="c1"># Size of batches.</span>
+<span class="n">BatchSize</span> <span class="o">=</span> <span class="mi">16</span>
+
+
+        <span class="c1"># This section is for parameters relating to preprocessing </span>
+        <span class="c1"># of evaluation data.</span>
+<span class="p">[</span><span class="n">PREPROCESS_EVAL</span><span class="p">]</span>
+<span class="c1"># Ratio between size of data and labels: data_size/label_size</span>
+<span class="n">SizeRatio</span> <span class="o">=</span> <span class="mi">1</span>
+<span class="c1"># Rescaling factor when generator loads.</span>
+<span class="n">Rescale</span> <span class="o">=</span> <span class="mf">1.0</span> 
+<span class="c1"># Size of tensors.</span>
+<span class="n">TargetSize</span> <span class="o">=</span> <span class="mi">128</span>
+<span class="c1"># Size of batches.</span>
+
+
+        <span class="c1"># This section is for parameters relating the model. ATM these are</span>
+        <span class="c1"># tailored to the UNet implementation.</span>
+<span class="p">[</span><span class="n">MODEL</span><span class="p">]</span>
+<span class="n">NumFilter</span> <span class="o">=</span> <span class="mi">64</span>
+<span class="n">Padding</span> <span class="o">=</span> <span class="n">same</span>
+<span class="n">OutputActivation</span> <span class="o">=</span> <span class="n">sigmoid</span>
+<span class="n">UpSampling</span> <span class="o">=</span> <span class="n">subpixel</span>
+<span class="n">DownSampling</span> <span class="o">=</span> <span class="n">maxpool</span>
+<span class="n">Activation</span> <span class="o">=</span> <span class="n">lrelu</span>
+<span class="n">Conv1DLater</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">Initializer</span> <span class="o">=</span> <span class="n">glorot_uniform</span>
+<span class="n">BatchNorm</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">Shortcut</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">DropOutRate</span> <span class="o">=</span> <span class="mf">0.3</span>
+<span class="n">DropOutWarning</span> <span class="o">=</span> <span class="kc">False</span> 
+<span class="n">SkipConnection</span> <span class="o">=</span> <span class="n">add</span>
+<span class="n">DropOutEncoderOnly</span> <span class="o">=</span> <span class="kc">False</span>
+</pre></div>
+</div>
+</div>
 <div class="section" id="todo">
 <h2>TODO<a class="headerlink" href="#todo" title="Permalink to this headline">¶</a></h2>
 <ul class="simple">
