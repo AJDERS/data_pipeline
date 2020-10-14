@@ -6,6 +6,42 @@ import tensorflow as tf
 from keras.engine import Layer, InputSpec
 from keras.utils.generic_utils import get_custom_objects
 
+class SubPixel3D(Layer):
+    # Sub-pixel convolution layer.
+    # See https://arxiv.org/abs/1609.05158
+    def __init__(self, scale, trainable=False, **kwargs):
+        if not (type(scale) == tuple or type(scale) == list):
+            scale = (scale[0], scale[0])
+        self.scale = scale
+        super().__init__(trainable=trainable, **kwargs)
+
+    def call(self, t):
+        r = self.scale
+        shape = t.shape.as_list()
+        # shape = K.shape(t)
+        new_shape = self.compute_output_shape(shape)
+        H = shape[1]
+        W = shape[2]
+        C = new_shape[-1]
+        t = tf.reshape(t, [-1, H, W, r[0], r[1], C])
+        # Here we are different from Equation 4 from the paper. That equation
+        # is equivalent to switching 3 and 4 in `perm`. But I feel my
+        # implementation is more natural.
+        t = tf.transpose(t, perm=[0, 1, 3, 2, 4, 5])  # S, H, r, H, r, C
+        t = tf.reshape(t, [-1, H * r[0], W * r[1], C])
+        return t
+
+    def compute_output_shape(self, input_shape):
+        r = self.scale
+        H = input_shape[1]
+        W = input_shape[2]
+        rrC = input_shape[3]
+        return tuple([input_shape[0], H * r[0], W * r[1], rrC // (r[0] * r[1])])
+
+    def get_config(self):
+        config = super().get_config()
+        config['scale'] = self.scale
+        return config
 
 class SubPixel(Layer):
     # Sub-pixel convolution layer.
