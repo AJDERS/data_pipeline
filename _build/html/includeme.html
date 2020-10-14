@@ -34,6 +34,8 @@
             
   <div class="section" id="data-pipeline">
 <h1>data_pipeline<a class="headerlink" href="#data-pipeline" title="Permalink to this headline">¶</a></h1>
+<p>Here the documentation for the <a class="reference external" href="https://github.com/AJDERS/data_pipeline">data_pipeline</a>
+is stored. Below are descriptions of modules and scripts in no particular order.</p>
 <div class="section" id="util-loader-mat-py">
 <h2><code class="docutils literal notranslate"><span class="pre">util/loader_mat.py</span></code><a class="headerlink" href="#util-loader-mat-py" title="Permalink to this headline">¶</a></h2>
 <p>Contains the class <code class="docutils literal notranslate"><span class="pre">Loader</span></code> which has methods for loading <code class="docutils literal notranslate"><span class="pre">.mat</span></code>
@@ -51,8 +53,14 @@ simulation and from the SARUS scanner.</p>
 epochs.</p></li>
 <li><p>(<code class="docutils literal notranslate"><span class="pre">fit_model</span></code>) If not done beforehand, either loads a pretrained
 model or builds, compiles, provides data generators and fits a model
-provided by the <code class="docutils literal notranslate"><span class="pre">build_model.py</span></code> script, see below.</p></li>
+provided by the the <code class="docutils literal notranslate"><span class="pre">models/unet.py</span></code>/<code class="docutils literal notranslate"><span class="pre">models/unet3d.py</span></code> script,
+see below.</p></li>
 </ul>
+<p><strong>NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE</strong></p>
+<p>If <code class="docutils literal notranslate"><span class="pre">Movement</span> <span class="pre">=</span> <span class="pre">True</span></code> in <code class="docutils literal notranslate"><span class="pre">config.ini</span></code> the pipeline assumes that your data
+has a time axis, i.e. the tensors are of shape <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">m,</span> <span class="pre">t)</span></code>, if
+<code class="docutils literal notranslate"><span class="pre">Movement</span> <span class="pre">=</span> <span class="pre">False</span></code> their shape is assumed to be <code class="docutils literal notranslate"><span class="pre">(n,</span> <span class="pre">m)</span></code>.</p>
+<p><strong>NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE</strong></p>
 <div class="section" id="module-data_pipeline.train">
 <span id="train-model"></span><h3><code class="docutils literal notranslate"><span class="pre">train.Model</span></code><a class="headerlink" href="#module-data_pipeline.train" title="Permalink to this headline">¶</a></h3>
 <p>This module contains a class called <cite>Model</cite> which implements an interface for
@@ -266,8 +274,63 @@ pairs are created using
 <h2><code class="docutils literal notranslate"><span class="pre">util/generator.py</span></code><a class="headerlink" href="#util-generator-py" title="Permalink to this headline">¶</a></h2>
 <p>Contains a class <code class="docutils literal notranslate"><span class="pre">DataGenerator</span></code> which yields pairs of data, label
 tensors for training neural networks.</p>
-<div class="section" id="data-generator-datagenerator">
-<h3><code class="docutils literal notranslate"><span class="pre">data.generator.DataGenerator</span></code><a class="headerlink" href="#data-generator-datagenerator" title="Permalink to this headline">¶</a></h3>
+<div class="section" id="module-data_pipeline.util.generator">
+<span id="data-generator-datagenerator"></span><h3><code class="docutils literal notranslate"><span class="pre">data.generator.DataGenerator</span></code><a class="headerlink" href="#module-data_pipeline.util.generator" title="Permalink to this headline">¶</a></h3>
+<p>This module contains the class <code class="docutils literal notranslate"><span class="pre">DataGenerator</span></code> which yields batches of
+pairs of data and labels. The <code class="docutils literal notranslate"><span class="pre">DataGenerator.flow</span></code> method replaces the
+<code class="docutils literal notranslate"><span class="pre">ImageDataGenerator.flow</span></code> method from Tensorflow, and allows for tensors of
+arbitrary rank.</p>
+<dl class="py class">
+<dt id="data_pipeline.util.generator.DataGenerator">
+<em class="property">class </em><code class="sig-prename descclassname">data_pipeline.util.generator.</code><code class="sig-name descname">DataGenerator</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">X</span></em>, <em class="sig-param"><span class="n">Y</span></em>, <em class="sig-param"><span class="n">mode</span></em>, <em class="sig-param"><span class="n">config</span></em><span class="sig-paren">)</span><a class="headerlink" href="#data_pipeline.util.generator.DataGenerator" title="Permalink to this definition">¶</a></dt>
+<dd><p>Instantiate this class and use the <code class="docutils literal notranslate"><span class="pre">.flow()</span></code> method in the same way
+one would use the <code class="docutils literal notranslate"><span class="pre">ImageDataGenerator.flow()</span></code> method from Tensorflow.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>X</strong> (<code class="docutils literal notranslate"><span class="pre">np.ndarray</span></code>.) – An array containing your data.</p></li>
+<li><p><strong>Y</strong> (<code class="docutils literal notranslate"><span class="pre">np.ndarray</span></code>.) – An array containing your labels.</p></li>
+<li><p><strong>mode</strong> (<code class="docutils literal notranslate"><span class="pre">str</span></code>.) – Specifying if the generator is for training, validation or
+evaluation data.</p></li>
+<li><p><strong>config</strong> (<code class="docutils literal notranslate"><span class="pre">dict</span></code>.) – The parsed configuration dictionary.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Example</dt>
+<dd class="field-even"><p></p></dd>
+</dl>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">configparser</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">util.generator</span> <span class="kn">import</span> <span class="n">DataGenerator</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">tensorflow.keras.models</span> <span class="kn">import</span> <span class="n">Model</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">model</span> <span class="o">=</span> <span class="n">Model</span><span class="p">(</span><span class="o">...</span><span class="p">)</span> <span class="c1"># Define model here</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">Y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">2</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">8</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">config</span> <span class="o">=</span> <span class="n">configparser</span><span class="o">.</span><span class="n">ConfigParser</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">config</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s1">&#39;your/config/path&#39;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">generator</span> <span class="o">=</span> <span class="n">DataGenerator</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">Y</span><span class="p">,</span> <span class="s1">&#39;training&#39;</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">training_gen</span> <span class="o">=</span> <span class="n">generator</span><span class="o">.</span><span class="n">flow</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">model</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">training_gen</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt id="data_pipeline.util.generator.DataGenerator.flow">
+<code class="sig-name descname">flow</code><span class="sig-paren">(</span><span class="sig-paren">)</span> &#x2192; Generator<span class="p">[</span>numpy.ndarray<span class="p">, </span>None<span class="p">, </span>None<span class="p">]</span><a class="headerlink" href="#data_pipeline.util.generator.DataGenerator.flow" title="Permalink to this definition">¶</a></dt>
+<dd><p><strong>Creates a Generator which yields batches of data and labels.</strong></p>
+<p>The data and labels are augmented in memory, based on the parameters
+of <code class="docutils literal notranslate"><span class="pre">config.ini</span></code>, i.e. they are shuffled, noise is added, rotated,
+and scatterers are removed. Note that the generator has no
+<code class="docutils literal notranslate"><span class="pre">send</span></code>-type, and hence are meant to be closed to the user.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>A generator which yields batches of data and labels.</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>Generator[np.ndarray, None, None]</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
 </div>
 </div>
 <div class="section" id="models-unet-py">
@@ -277,6 +340,15 @@ tensors for training neural networks.</p>
 <a class="reference external" href="https://arxiv.org/abs/1505.04597">UNet</a></div>
 <div class="line">with the hyperparameters set in <code class="docutils literal notranslate"><span class="pre">config.ini</span></code>.</div>
 </div>
+</div>
+<div class="section" id="models-unet3d-py">
+<h2><code class="docutils literal notranslate"><span class="pre">models/unet3d.py</span></code><a class="headerlink" href="#models-unet3d-py" title="Permalink to this headline">¶</a></h2>
+<p>This script contains a Tensorflow implementation of UNet, for 3D-data see:
+<a class="reference external" href="https://arxiv.org/abs/1505.04597">UNet</a> with the hyperparameters set in
+<code class="docutils literal notranslate"><span class="pre">config.ini</span></code>. Here it is worth noting that the
+<code class="docutils literal notranslate"><span class="pre">layers.layers.SubPixel3D</span></code> implementation forces the use of a
+feature upscaling factor of 4 rather than 2 for each up-block, see
+<code class="docutils literal notranslate"><span class="pre">layers.layers.SubPixel3D</span></code>, for more details on this.</p>
 </div>
 <div class="section" id="layers-layers-py">
 <h2><code class="docutils literal notranslate"><span class="pre">layers/layers.py</span></code><a class="headerlink" href="#layers-layers-py" title="Permalink to this headline">¶</a></h2>
@@ -490,8 +562,6 @@ Below an example config file can be seen.</p>
 <div class="section" id="todo">
 <h2>TODO<a class="headerlink" href="#todo" title="Permalink to this headline">¶</a></h2>
 <ul class="simple">
-<li><p>A more flexible input shape handling, allowing for both single 3d
-data frames, and 4d data.</p></li>
 <li><p>Do docstrings for all functionalities.</p></li>
 <li><p>Automatic docstring broadcasting to wiki-page.</p></li>
 <li><p>Broadcasting of examples should also be of labels, not only data.</p></li>
@@ -526,6 +596,7 @@ metrics, not only <code class="docutils literal notranslate"><span class="pre">a
 <li class="toctree-l2"><a class="reference internal" href="#data-generate-frame-py"><code class="docutils literal notranslate"><span class="pre">data/generate_frame.py</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#util-generator-py"><code class="docutils literal notranslate"><span class="pre">util/generator.py</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#models-unet-py"><code class="docutils literal notranslate"><span class="pre">models/unet.py</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#models-unet3d-py"><code class="docutils literal notranslate"><span class="pre">models/unet3d.py</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#layers-layers-py"><code class="docutils literal notranslate"><span class="pre">layers/layers.py</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#util-run-pipeline-py"><code class="docutils literal notranslate"><span class="pre">util/run_pipeline.py</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#config-config-ini"><code class="docutils literal notranslate"><span class="pre">config/config.ini</span></code></a></li>

@@ -11,16 +11,30 @@ contains the class `Model` which provides a crude interface for:
 * (`load_mat`) Ingesting output of the `Loader` class of `loader_mat.py`.
 * (`print_img`) Visualizing data/labels.
 * (`illustrate_history`) Visualizing the metrics over training epochs.
-* (`fit_model`) If not done beforehand, either loads a pretrained model or builds, compiles, provides data generators and fits a model provided by the `build_model.py` script, see below.
+* (`fit_model`) If not done beforehand, either loads a pretrained model or builds, compiles, provides data generators and fits a model provided by the `models/unet.py`/`models/unet3d.py` script, see below. 
+
+__If `Movement = True` in `config.ini` the pipeline assumes that your data has a time axis, i.e. the tensors are of shape `(n, m, t)`, if `Movement = False` their shape is assumed to be `(n, m)`.__
 
 ## `data/generate_frame.py` 
-Contains a class ``FrameGenerator`` which generates pairs of data, label tensors for training neural networks.
+Contains a class `FrameGenerator` which generates pairs of data, label tensors for training neural networks. *This module creates the tensors*.
+
+## `util/generator.py`
+Contains a class `DataGenerator` which yields pairs of data, label
+tensors for training neural networks. *This module feeds the tensors to the `model.fit()` method*.
 
 ## `models/unet.py`
 
-This script contains a crude Tensorflow implementation of UNet, see:
+This script contains a Tensorflow implementation of UNet, see:
 [UNet](https://arxiv.org/abs/1505.04597) \
 with the hyperparameters set in `config.ini`.
+
+## `models/unet3d.py`
+
+This script contains a Tensorflow implementation of UNet, for 3D-data see:
+[UNet](https://arxiv.org/abs/1505.04597) \
+with the hyperparameters set in `config.ini`. Here it is worth noting that the `layers.layers.SubPixel3D` implementation forces the use of a
+feature upscaling factor of 4 rather than 2 for each up-block, see
+`layers.layers.SubPixel3D`, for more details on this.
 
 ## `layers/layers.py`
 Implements certain types of layers not currently present in Tensorflow, but which are part of the UNet neural network.
@@ -62,7 +76,6 @@ This scripts does the following operations:
 
 ## TODO
 
-* A more flexible input shape handling, allowing for both single 3d data frames, and 4d data.
 * Do docstrings for all functionalities.
 * Automatic docstring broadcasting to wiki-page. 
 * Broadcasting of examples should also be of labels, not only data.

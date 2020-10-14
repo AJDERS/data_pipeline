@@ -1,5 +1,8 @@
 data_pipeline
 =============
+Here the documentation for the `data_pipeline <https://github.com/AJDERS/data_pipeline>`__
+is stored. Below are descriptions of modules and scripts in no particular order.
+
 
 ``util/loader_mat.py``
 ----------------------
@@ -20,7 +23,15 @@ Contains the class ``Model`` which provides a crude interface for:
    epochs.
 -  (``fit_model``) If not done beforehand, either loads a pretrained
    model or builds, compiles, provides data generators and fits a model
-   provided by the ``build_model.py`` script, see below.
+   provided by the the ``models/unet.py``/``models/unet3d.py`` script,
+   see below.
+**NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE**
+
+If ``Movement = True`` in ``config.ini`` the pipeline assumes that your data
+has a time axis, i.e. the tensors are of shape ``(n, m, t)``, if
+``Movement = False`` their shape is assumed to be ``(n, m)``.
+
+**NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE NOTE**
 
 ``train.Model``
 ^^^^^^^^^^^^^^^
@@ -46,7 +57,7 @@ tensors for training neural networks.
 
 ``data.generator.DataGenerator``
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-.. automodule:: data_pipeline.util.DataGenerator
+.. automodule:: data_pipeline.util.generator
    :members:
 
 ``models/unet.py``
@@ -55,6 +66,16 @@ tensors for training neural networks.
 | This script contains a crude Tensorflow implementation of UNet, see:
   `UNet <https://arxiv.org/abs/1505.04597>`__
 | with the hyperparameters set in ``config.ini``.
+
+``models/unet3d.py``
+--------------------
+
+This script contains a Tensorflow implementation of UNet, for 3D-data see:
+`UNet <https://arxiv.org/abs/1505.04597>`__ with the hyperparameters set in
+``config.ini``. Here it is worth noting that the
+``layers.layers.SubPixel3D`` implementation forces the use of a
+feature upscaling factor of 4 rather than 2 for each up-block, see
+``layers.layers.SubPixel3D``, for more details on this.
 
 ``layers/layers.py``
 --------------------
@@ -127,8 +148,6 @@ Below an example config file can be seen.
 TODO
 ----
 
--  A more flexible input shape handling, allowing for both single 3d
-   data frames, and 4d data.
 -  Do docstrings for all functionalities.
 -  Automatic docstring broadcasting to wiki-page.
 -  Broadcasting of examples should also be of labels, not only data.

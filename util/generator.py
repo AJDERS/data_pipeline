@@ -145,7 +145,6 @@ class DataGenerator:
                 idx += 1
                 batch_xs[batch_i] = current_data
                 batch_ys[batch_i] = current_label
-            print(batch_xs.shape)
             yield batch_xs, batch_ys
 
     def _add_noise(self, noise, tensor):
