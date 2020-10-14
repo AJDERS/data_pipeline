@@ -13,14 +13,14 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import models.unet as UNet
-from typing import Type
+from typing import Type, Generator
 from datetime import datetime
 from util.callback import Callback
 from util.loader_mat import Loader
+from util.generator import DataGenerator
 from tensorflow.keras.callbacks import History
-from tensorflow.keras.preprocessing.image import NumpyArrayIterator
 from tensorflow.keras.optimizers import RMSprop
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
 
 now = datetime.now()
 dt_string = now.strftime("%d%m%Y_%H")
@@ -91,41 +91,30 @@ class Model():
         return train_data_dirs, valid_data_dirs
 
     def generator(self,
-        type_data: str,
+        mode: str,
         X: np.ndarray,
-        Y: np.ndarray) -> Type[NumpyArrayIterator]:
+        Y: np.ndarray) -> Generator[np.ndarray, None, None]:
         """
-        **Returns a ``ImageDataGenerator.flow`` object**
+        **Returns a DataGenerator.flow() generator object**
 
         Such an object is an iterator containing data/label matrices used in
-        training. The type of matrix are based on ``type_data``.
+        training. The type of matrix are based on ``mode``.
 
-        :param type_data: A string specifying which type of data the generator
+        :param mode: A string specifying which type of data the generator
             generates.
-        :type type_data: ``str``.
+        :type mode: ``str``.
         :param X: An array containing the data matrices.
         :type X: ``np.ndarray``.
         :returns: A ``ImageGenerator.flow`` iterator object.
         :rtype: ``NumpyArrayIterator``.
 
-        .. warning:: ``type_data`` must be either ``['train', 'valid', 'eval']``.
-        .. seealso:: `ImageDataGenerator source code <https://github.com/keras-team/keras-preprocessing/blob/master/keras_preprocessing/image/image_data_generator.py>`_
+        .. warning:: ``mode`` must be either 
+            ``['training', 'validation', 'evaluation']``.
+        .. seealso:: ``util.generator.DataGenerator``.
         """
-        assert type_data in ['train', 'valid', 'eval']
-        if type_data == 'train':
-            preprocess = self.config['PREPROCESS_TRAIN']
-            batch_size = preprocess.getint('BatchSize')
-        elif type_data == 'valid':
-            preprocess = self.config['PREPROCESS_VALID']
-            batch_size = preprocess.getint('BatchSize')
-        else:
-            preprocess = self.config['PREPROCESS_EVAL']
-            batch_size = preprocess.getint('BatchSize')
-        print(f'Defining {type_data} data generator... \n')
-        generator = ImageDataGenerator(
-            rescale=preprocess.getfloat('Rescale')
-        )
-        flow_generator = generator.flow(X, Y, batch_size)
+        print(f'Defining {mode} data generator... \n')
+        generator = DataGenerator(X, Y, mode, self.config)
+        flow_generator = generator.flow()
         return flow_generator
 
     def load_model(self, model_path: str) -> None:
@@ -247,7 +236,7 @@ class Model():
                 )
                 
                 self.train_generator = self.generator(
-                    'train',
+                    'training',
                     self.train_X,
                     self.train_Y
                 )
@@ -267,7 +256,7 @@ class Model():
                 )
 
                 self.valid_generator = self.generator(
-                    'valid',
+                    'validation',
                     self.valid_X,
                     self.valid_Y
                 )
