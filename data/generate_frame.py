@@ -20,6 +20,30 @@ class FrameGenerator:
     The training data consists of data and labels, the labels are sparse
     tensors while the data are tensors where the sparse tensors which are 
     convolved with a given point spread function.
+
+    Here is an example of how to create a single frame, and inspect the
+    corresponding label.
+    :Example:
+
+    >>> from scipy.signal import convolve2d
+    >>> from data.generate_frame import FrameGenerator as FG
+    >>> import matplotlib.pyplot as plt
+
+    >>> fg = FG('config/config.ini', 'storage')
+    >>> frame = fg._make_frame()
+    >>> frame = fg._place_scatterers(frame)
+    >>> gaussian_map = fg._gaussian_map(0.1, 0.0)
+    >>> out = convolve2d(frame[:,:,0], gaussian_map, 'same')
+    >>> plt.imshow(out)
+
+    Here is an example of how to generate frames according to the parameters
+    set in ``config.ini`` and save them to the directory ``storage``.
+    :Example:
+
+    >>> from data.generate_frame import FrameGenerator as FG
+    >>> fg = FG('config/config.ini', 'storage')
+    >>> fg.run()
+
     """
     def __init__(self, config_path, data_folder_path):
         self.data_folder_path = data_folder_path
