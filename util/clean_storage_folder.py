@@ -1,5 +1,5 @@
 import shutil
-import make_storage_folder
+from . import make_storage_folder
 
 def clean_storage(storage_directory):
     shutil.rmtree(storage_directory)
