@@ -1,6 +1,9 @@
 Documentation
 *************
 
+Here the documentation for the repository `data_pipeline <https://github.com/AJDERS/data_pipeline>`__
+is stored.
+
 Indices and tables
 ==================
 
