@@ -42,6 +42,7 @@ class Model():
     def __init__(self, data_folder_path, config_path):
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
+        self.config_path = config_path
         self.data_folder_path = data_folder_path
         self.train_path = os.path.join(self.data_folder_path, 'training')
         self.valid_path = os.path.join(self.data_folder_path, 'validation')
@@ -191,7 +192,7 @@ class Model():
             self.model.compile(
                 loss='mse',
                 optimizer=RMSprop(lr=0.001),
-                metrics=['accuracy']
+                metrics=['accuracy', 'loss']
             )
             self.model_compiled = True
         else:
@@ -314,23 +315,16 @@ class Model():
             and metrics values at successive epochs, as well as validation loss
             values and validation metrics values (if applicable).
         """
-        # summarize history for accuracy
-        plt.plot(history.history['accuracy'])
-        plt.plot(history.history['val_accuracy'])
-        plt.title('model accuracy')
-        plt.ylabel('accuracy')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'test'], loc='upper left')
-        plt.savefig(f'output/accuracy_{dt_string}.png')
-
-        # summarize history for loss
-        plt.plot(history.history['loss'])
-        plt.plot(history.history['val_loss'])
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'test'], loc='upper left')
-        plt.savefig(f'output/loss_{dt_string}.png')
+        # Get metrics which are not `val_{metric}`:
+        metrics = [key for key in history.history.keys() if '_' not in key]
+        for key in metrics:
+            plt.plot(history.history[f'{key}'])
+            plt.plot(history.history[f'val_{key}'])
+            plt.title(f'model {key}')
+            plt.ylabel(f'{key}')
+            plt.xlabel('epoch')
+            plt.legend(['train', 'test'], loc='upper left')
+            plt.savefig(f'output/{key}_{dt_string}.png')
 
     def broadcast(self,
         history: Type[History]) -> None:
@@ -345,6 +339,11 @@ class Model():
             and metrics values at successive epochs, as well as validation loss
             values and validation metrics values (if applicable).
         """
+        with open(self.config_path, 'r') as file:
+            logging.info(f'Using config-file: {self.config_path}.')
+            logging.info(f'{self.config_path}:')
+            for line in file:
+                logging.info(line)
         self.model.summary(print_fn=lambda x: logging.info(x + '\n'))
         logging.info(history.history.keys())
         for key in history.history.keys():
