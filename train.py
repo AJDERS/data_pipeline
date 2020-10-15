@@ -7,6 +7,7 @@ the results of tensorflow ``tensorflow.keras.models``.
 import os
 import keras
 import logging
+import random
 import configparser
 import numpy as np
 import tensorflow as tf
@@ -19,6 +20,7 @@ from util.loader_mat import Loader
 from util.generator import DataGenerator
 from tensorflow.keras.callbacks import History
 from tensorflow.keras.optimizers import RMSprop
+from matplotlib.animation import FuncAnimation, PillowWriter 
 
 
 now = datetime.now()
@@ -137,31 +139,55 @@ class Model():
 
     def print_img(self) -> None:
         """
-        **Saves a plot of 16 examples of input data.**
+        **Saves a plot of 8 examples of input data.**
 
         The destination folder is:
         ``'output/examples_{dt_string}.png'``
         where ``dt_string`` is the current data and hour in the format:
         ``{ddmmyyyy-hh}``.
         """
-        nrows = 4
+        nrows = 2
         ncols = 4
         fig = plt.gcf()
         fig.set_size_inches(ncols * 4, nrows * 4)
-        train_data_dirs, valid_data_dirs = self._get_data_dirs()
-        pic_index = 8
+        train_data_dirs, _ = self._get_data_dirs()
+        pic_index = random.randint(0, len(train_data_dirs))
         next_train_pix = train_data_dirs[pic_index-8:pic_index]
-        next_valid_pix = valid_data_dirs[pic_index-8:pic_index]
 
-        for i, img_path in enumerate(next_train_pix+next_valid_pix):
-            # Set up subplot; subplot indices start at 1
-            name = '/'.join(img_path.split('/')[-2:])
-            sp = plt.subplot(nrows, ncols, i + 1)
-            sp.axis('Off') # Don't show axes (or gridlines)
-            sp.set_title(f'{name}')
-            _ = self.loader.decompress_load(img_path)
-            
-        plt.savefig(f'output/examples_{dt_string}.png')
+        if self.config['DATA'].getboolean('Movement'):
+            # Generates frames.
+            def _update(next_train_pix, index):
+                for i, img_path in enumerate(next_train_pix):
+                    # Set up subplot; subplot indices start at 1
+                    name = '/'.join(img_path.split('/')[-2:])
+                    sp = plt.subplot(nrows, ncols, i + 1)
+                    sp.set_title(f'{name}')
+                    array = self.loader.decompress_load(img_path)
+
+                    msg = 'Movement = True, but data does not have rank 3.'
+                    assert len(array.shape) == 3, msg
+                    plt.imshow(array[:,:,index])
+
+            duration = self.config['DATA'].getint('MovementDuration')
+            ani = FuncAnimation(
+                fig,
+                lambda i: _update(next_train_pix, i),
+                list(range(duration))[1:],
+                init_func=_update(next_train_pix, 0)
+            )  
+            writer = PillowWriter(fps=duration)  
+            ani.save(f"output/examples_{dt_string}.gif", writer=writer) 
+        else:
+            for i, img_path in enumerate(next_train_pix):
+                # Set up subplot; subplot indices start at 1
+                name = '/'.join(img_path.split('/')[-2:])
+                sp = plt.subplot(nrows, ncols, i + 1)
+                sp.set_title(f'{name}')
+                array = self.loader.decompress_load(img_path)
+                msg = 'Movement = False, but data does not have rank 2.'
+                assert len(array.shape) == 2, msg
+                plt.imshow(array)
+            plt.savefig(f'output/examples_{dt_string}.png')
 
     def build_model(self) -> None:
         """
