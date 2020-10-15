@@ -7,6 +7,7 @@ the results of tensorflow ``tensorflow.keras.models``.
 import os
 import keras
 import logging
+import random
 import configparser
 import numpy as np
 import tensorflow as tf
@@ -19,6 +20,7 @@ from util.loader_mat import Loader
 from util.generator import DataGenerator
 from tensorflow.keras.callbacks import History
 from tensorflow.keras.optimizers import RMSprop
+from matplotlib.animation import FuncAnimation, PillowWriter 
 
 
 now = datetime.now()
@@ -42,6 +44,7 @@ class Model():
     def __init__(self, data_folder_path, config_path):
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
+        self.config_path = config_path
         self.data_folder_path = data_folder_path
         self.train_path = os.path.join(self.data_folder_path, 'training')
         self.valid_path = os.path.join(self.data_folder_path, 'validation')
@@ -136,31 +139,55 @@ class Model():
 
     def print_img(self) -> None:
         """
-        **Saves a plot of 16 examples of input data.**
+        **Saves a plot of 8 examples of input data.**
 
         The destination folder is:
         ``'output/examples_{dt_string}.png'``
         where ``dt_string`` is the current data and hour in the format:
         ``{ddmmyyyy-hh}``.
         """
-        nrows = 4
+        nrows = 2
         ncols = 4
         fig = plt.gcf()
         fig.set_size_inches(ncols * 4, nrows * 4)
-        train_data_dirs, valid_data_dirs = self._get_data_dirs()
-        pic_index = 8
+        train_data_dirs, _ = self._get_data_dirs()
+        pic_index = random.randint(0, len(train_data_dirs))
         next_train_pix = train_data_dirs[pic_index-8:pic_index]
-        next_valid_pix = valid_data_dirs[pic_index-8:pic_index]
 
-        for i, img_path in enumerate(next_train_pix+next_valid_pix):
-            # Set up subplot; subplot indices start at 1
-            name = '/'.join(img_path.split('/')[-2:])
-            sp = plt.subplot(nrows, ncols, i + 1)
-            sp.axis('Off') # Don't show axes (or gridlines)
-            sp.set_title(f'{name}')
-            _ = self.loader.decompress_load(img_path)
-            
-        plt.savefig(f'output/examples_{dt_string}.png')
+        if self.config['DATA'].getboolean('Movement'):
+            # Generates frames.
+            def _update(next_train_pix, index):
+                for i, img_path in enumerate(next_train_pix):
+                    # Set up subplot; subplot indices start at 1
+                    name = '/'.join(img_path.split('/')[-2:])
+                    sp = plt.subplot(nrows, ncols, i + 1)
+                    sp.set_title(f'{name}')
+                    array = self.loader.decompress_load(img_path)
+
+                    msg = 'Movement = True, but data does not have rank 3.'
+                    assert len(array.shape) == 3, msg
+                    plt.imshow(array[:,:,index])
+
+            duration = self.config['DATA'].getint('MovementDuration')
+            ani = FuncAnimation(
+                fig,
+                lambda i: _update(next_train_pix, i),
+                list(range(duration))[1:],
+                init_func=_update(next_train_pix, 0)
+            )  
+            writer = PillowWriter(fps=duration)  
+            ani.save(f"output/examples_{dt_string}.gif", writer=writer) 
+        else:
+            for i, img_path in enumerate(next_train_pix):
+                # Set up subplot; subplot indices start at 1
+                name = '/'.join(img_path.split('/')[-2:])
+                sp = plt.subplot(nrows, ncols, i + 1)
+                sp.set_title(f'{name}')
+                array = self.loader.decompress_load(img_path)
+                msg = 'Movement = False, but data does not have rank 2.'
+                assert len(array.shape) == 2, msg
+                plt.imshow(array)
+            plt.savefig(f'output/examples_{dt_string}.png')
 
     def build_model(self) -> None:
         """
@@ -191,7 +218,7 @@ class Model():
             self.model.compile(
                 loss='mse',
                 optimizer=RMSprop(lr=0.001),
-                metrics=['accuracy']
+                metrics=['accuracy', 'loss']
             )
             self.model_compiled = True
         else:
@@ -314,23 +341,16 @@ class Model():
             and metrics values at successive epochs, as well as validation loss
             values and validation metrics values (if applicable).
         """
-        # summarize history for accuracy
-        plt.plot(history.history['accuracy'])
-        plt.plot(history.history['val_accuracy'])
-        plt.title('model accuracy')
-        plt.ylabel('accuracy')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'test'], loc='upper left')
-        plt.savefig(f'output/accuracy_{dt_string}.png')
-
-        # summarize history for loss
-        plt.plot(history.history['loss'])
-        plt.plot(history.history['val_loss'])
-        plt.title('model loss')
-        plt.ylabel('loss')
-        plt.xlabel('epoch')
-        plt.legend(['train', 'test'], loc='upper left')
-        plt.savefig(f'output/loss_{dt_string}.png')
+        # Get metrics which are not `val_{metric}`:
+        metrics = [key for key in history.history.keys() if '_' not in key]
+        for key in metrics:
+            plt.plot(history.history[f'{key}'])
+            plt.plot(history.history[f'val_{key}'])
+            plt.title(f'model {key}')
+            plt.ylabel(f'{key}')
+            plt.xlabel('epoch')
+            plt.legend(['train', 'test'], loc='upper left')
+            plt.savefig(f'output/{key}_{dt_string}.png')
 
     def broadcast(self,
         history: Type[History]) -> None:
@@ -345,6 +365,11 @@ class Model():
             and metrics values at successive epochs, as well as validation loss
             values and validation metrics values (if applicable).
         """
+        with open(self.config_path, 'r') as file:
+            logging.info(f'Using config-file: {self.config_path}.')
+            logging.info(f'{self.config_path}:')
+            for line in file:
+                logging.info(line)
         self.model.summary(print_fn=lambda x: logging.info(x + '\n'))
         logging.info(history.history.keys())
         for key in history.history.keys():
