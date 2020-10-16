@@ -20,6 +20,7 @@ from util.loader_mat import Loader
 from util.generator import DataGenerator
 from tensorflow.keras.callbacks import History
 from tensorflow.keras.optimizers import RMSprop
+from tensorflow.keras.metrics import Precision, Recall
 from matplotlib.animation import FuncAnimation, PillowWriter 
 
 
@@ -218,7 +219,7 @@ class Model():
             self.model.compile(
                 loss='mse',
                 optimizer=RMSprop(lr=0.001),
-                metrics=['accuracy', 'loss']
+                metrics=['mean_squared_error']
             )
             self.model_compiled = True
         else:
