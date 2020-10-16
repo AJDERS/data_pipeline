@@ -236,14 +236,15 @@ tensors while the data are tensors where the sparse tensors which are
 convolved with a given point spread function.</p>
 <dl class="py method">
 <dt id="data_pipeline.data.generate_frame.FrameGenerator.generate_single_frame">
-<code class="sig-name descname">generate_single_frame</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">gaussian_map</span></em>, <em class="sig-param"><span class="n">index</span></em>, <em class="sig-param"><span class="n">mode</span></em><span class="sig-paren">)</span><a class="headerlink" href="#data_pipeline.data.generate_frame.FrameGenerator.generate_single_frame" title="Permalink to this definition">¶</a></dt>
+<code class="sig-name descname">generate_single_frame</code><span class="sig-paren">(</span><em class="sig-param"><span class="n">gaussian_map_data</span><span class="p">:</span> <span class="n">numpy.ndarray</span></em>, <em class="sig-param"><span class="n">gaussian_map_label</span><span class="p">:</span> <span class="n">numpy.ndarray</span></em>, <em class="sig-param"><span class="n">index</span><span class="p">:</span> <span class="n">int</span></em>, <em class="sig-param"><span class="n">mode</span><span class="p">:</span> <span class="n">str</span></em><span class="sig-paren">)</span> &#x2192; None<a class="headerlink" href="#data_pipeline.data.generate_frame.FrameGenerator.generate_single_frame" title="Permalink to this definition">¶</a></dt>
 <dd><p><strong>This function generates a single data, label pair and saves them.</strong></p>
 <p>The frame is made and filled with scatterers, from which the label is
 generated and saved.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters</dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>gaussian_map</strong> (<code class="docutils literal notranslate"><span class="pre">np.ndarray</span></code>) – The gaussian map used for convolution.</p></li>
+<li><p><strong>gaussian_map_data</strong> (<code class="docutils literal notranslate"><span class="pre">np.ndarray</span></code>) – The gaussian map used for convolution of data.</p></li>
+<li><p><strong>gaussian_map_label</strong> (<code class="docutils literal notranslate"><span class="pre">np.ndarray</span></code>) – The gaussian map used for convolution of labels.</p></li>
 <li><p><strong>index</strong> (<code class="docutils literal notranslate"><span class="pre">int</span></code>.) – The execution index, see
 <code class="docutils literal notranslate"><span class="pre">generate_frame.FrameGenerator.run</span></code>.</p></li>
 <li><p><strong>mode</strong> (<code class="docutils literal notranslate"><span class="pre">str</span></code>.) – A string specifying wether the frame is for training,
