@@ -145,6 +145,37 @@ Below an example config file can be seen.
 
 .. literalinclude:: ../config/config.ini
 
+Documentation
+-------------
+
+The documentation for this project has three parts:
+
+* A ``README.md``.
+* A sphinx generated html-page.
+* A github-pages webpage.
+
+The ``README.md`` is maintained *sort of* seperately from the others. The github-pages webpage is generated from the sphinx generated html-page. In a way the github-pages is basically a host for the sphinx page.
+
+How to update documentation.
+^^^^^^^^^^^^^^^^^^^
+When you have implemented a new module and have added docstrings and examples and what not, you should do the following steps:
+
+* Write a small description in this readme, i.e. in ``README.md``.
+* Copy this description to ``source/README.rst``.
+* Below the copied description in ``source/README.rst`` you should add the following, which will add the docstring to the sphinx generated html-page: 
+.. code-block::
+
+   ``your.new.module.file.Class``
+   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   .. automodule:: your.new.module.file
+      :members:
+
+* Go to the root-folder of the repo and run the following command: ``make html``.
+* Inspect the result by opening ``_build/html/index.html`` in your browser.
+* Then run the following command: ``cp -a _build/html/. docs``.
+* Now add, commit, and push your changes to **develop** or another branch which is not ``master``.
+* Create a pull request, and await its completion.
+
 TODO
 ----
 

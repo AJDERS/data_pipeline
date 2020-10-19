@@ -74,6 +74,33 @@ This scripts does the following operations:
 * `Model.illustrate_history(history)` is executed, where `history` is the `tensorflow.Model.History` object of the fitted model. The plots are saved to `output`, the naming format is: `accuracy_{ddmmyyyy_hh}.log` and `loss_{ddmmyyyy_hh}.log` with the date and hour of execution.
 * `Model.print_img()` is executed and saves examples images of data to `output`, the naming format is: `examples_{ddmmyyyy_hh}.log` with the date and hour of execution.
 
+## Documentation
+
+The documentation for this project has three parts:
+* A `README.md`.
+* A sphinx generated html-page.
+* A github-pages webpage.
+
+The `README.md` is maintained _sort of_ seperately from the others. The github-pages webpage is generated from the sphinx generated html-page. In a way the github-pages is basically a host for the sphinx page.
+
+### How to update documentation
+When you have implemented a new module and have added docstrings and examples and what not, you should do the following steps:
+
+* Write a small description in this readme, i.e. in `README.md`.
+* Copy this description to `source/README.rst`.
+* Below the copied description in `source/README.rst` you should add the following, which will add the docstring to the sphinx generated html-page: 
+```
+``your.new.module.file.Class``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+.. automodule:: your.new.module.file
+   :members:
+```
+* Go to the root-folder of the repo and run the following command: `make html`.
+* Inspect the result by opening `_build/html/index.html` in your browser.
+* Then run the following command: `cp -a _build/html/. docs`.
+* Now add, commit, and push your changes to **develop** or another branch which is not `master`.
+* Create a pull request, and await its completion.
+
 ## TODO
 
 * Do docstrings for all functionalities.

@@ -154,10 +154,30 @@ class FrameGenerator:
         gaussian_map = np.exp(-( (distance-mu)**2 / ( 2.0 * sigma**2 ) ) )
         return gaussian_map
 
+    def _normalize(self, frame: np.ndarray) -> np.ndarray:
+        """
+        **Normalizes the frame**
+        
+        :param frame: Frame which is to be normalized.
+        :type frame: ``np.ndarray``.
+        :returns: Normalized frame.
+        :rtype: ``np.ndarray`.
+        """
+        if self.movement:
+            for i in range(self.duration):
+                frame[:,:,i] -= min(map(np.min, frame[:,:,i]))
+                frame[:,:,i] /= max(map(np.max, frame[:,:,i]))
+            return frame
+        else:
+            frame -= min(map(np.min, frame))
+            frame /= max(map(np.max, frame))
+            return frame
+
     def _generate_output_from_frame(
         self,
         frame: np.ndarray,
-        gaussian_map: np.ndarray
+        gaussian_map_data: np.ndarray,
+        gaussian_map_label: np.ndarray,
         ) -> np.ndarray:
         """
         **Generates output data from a frame by convolution.**
@@ -167,33 +187,43 @@ class FrameGenerator:
 
         :param frame: The sparse tensor which is to be convolved.
         :type frame: ``np.ndarray``. 
-        :param gaussian_map: The gaussian array which the tensor is convolved
-            with.
-        :type gaussian_map: ``np.ndarray``.
+        :param gaussian_map_data: The gaussian map used for convolution of data.
+        :type gaussian_map_data: ``np.ndarray``
+        :param gaussian_map_label: The gaussian map used for convolution of labels.
+        :type gaussian_map_label: ``np.ndarray``
         :returns: Convolved tensor.
         :rtype: ``np.ndarray``.
         """
         output = np.zeros(frame.shape)
+        label = np.zeros(frame.shape)
         if self.movement:
             for i in range(self.duration):
-                output[:,:,i] = convolve2d(frame[:,:,i], gaussian_map, 'same')
-            label = frame
+                output[:,:,i] = convolve2d(frame[:,:,i], gaussian_map_data, 'same')
+                label[:,:,i] = convolve2d(frame[:,:,i], gaussian_map_label, 'same')
             return output, label
         else:
-            output = convolve2d(frame, gaussian_map, 'same')
-            label = frame
+            output = convolve2d(frame, gaussian_map_data, 'same')
+            label = convolve2d(frame, gaussian_map_label, 'same')
             return output, label
 
  
-    def generate_single_frame(self, gaussian_map, index, mode):
+    def generate_single_frame(
+        self,
+        gaussian_map_data: np.ndarray,
+        gaussian_map_label: np.ndarray,
+        index: int,
+        mode: str
+        ) -> None:
         """
         **This function generates a single data, label pair and saves them.**
 
         The frame is made and filled with scatterers, from which the label is
         generated and saved.
 
-        :param gaussian_map: The gaussian map used for convolution.
-        :type gaussian_map: ``np.ndarray``
+        :param gaussian_map_data: The gaussian map used for convolution of data.
+        :type gaussian_map_data: ``np.ndarray``
+        :param gaussian_map_label: The gaussian map used for convolution of labels.
+        :type gaussian_map_label: ``np.ndarray``
         :param index: The execution index, see 
             ``generate_frame.FrameGenerator.run``.
         :type index: ``int``.
@@ -203,9 +233,11 @@ class FrameGenerator:
         """
         frame = self._make_frame()
         frame_w_scat = self._place_scatterers(frame)
+        norm_frame = self._normalize(frame_w_scat)
         output, label = self._generate_output_from_frame(
-            frame_w_scat,
-            gaussian_map
+            norm_frame,
+            gaussian_map_data,
+            gaussian_map_label
         )
         loader = loader_mat.Loader()
         loader.compress_and_save(
@@ -237,19 +269,33 @@ class FrameGenerator:
         self.container_dir = storage.make_storage_folder(
             self.data_folder_path
         )
-        gaussian_map = self._gaussian_map(
+        gaussian_map_data = self._gaussian_map(
             self.config['DATA'].getfloat('GaussianSigma'),
+            self.config['DATA'].getfloat('GaussianMu')
+        )
+        gaussian_map_label = self._gaussian_map(
+            self.config['DATA'].getfloat('GaussianSigma')/2.0,
             self.config['DATA'].getfloat('GaussianMu')
         )
         num_cores = multiprocessing.cpu_count()
         print('Making training data.')
         Parallel(n_jobs=num_cores)(
             delayed(self.generate_single_frame)
-                (gaussian_map, i, 'training') for i in tqdm(range(self.num_data_train))
+                (
+                    gaussian_map_data,
+                    gaussian_map_label,
+                    i,
+                    'training'
+                ) for i in tqdm(range(self.num_data_train))
         )
 
         print('Making validation data.')
         Parallel(n_jobs=num_cores)(
             delayed(self.generate_single_frame)
-                (gaussian_map, i, 'validation') for i in tqdm(range(self.num_data_valid))
+                (
+                    gaussian_map_data,
+                    gaussian_map_label,
+                    i,
+                    'validation'
+                ) for i in tqdm(range(self.num_data_valid))
         )
