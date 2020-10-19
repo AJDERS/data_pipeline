@@ -21,6 +21,8 @@ class FrameGenerator:
     tensors while the data are tensors where the sparse tensors which are 
     convolved with a given point spread function.
     """
+
+
     def __init__(self, config_path, data_folder_path):
         self.data_folder_path = data_folder_path
         self.config = configparser.ConfigParser()
@@ -34,6 +36,7 @@ class FrameGenerator:
         self.duration = self.config['DATA'].getint('MovementDuration')
         self.angle = self.config['DATA'].getint('MovementAngle') * (np.pi / 180.0)
         self.scat_pos = []
+
 
     def _make_frame(self) -> np.ndarray:
         """
@@ -58,6 +61,7 @@ class FrameGenerator:
         frame = np.zeros(shape)
         return frame
 
+
     def _next_pos(self, previous_x: int, previous_y: int) -> tuple:
         """
         **Simple helper function calculating next position in time.**
@@ -77,7 +81,12 @@ class FrameGenerator:
         return x, y
 
 
-    def _place_scatterers(self, frame: np.ndarray) -> np.ndarray:
+    def _place_scatterers(
+        self,
+        frame: np.ndarray,
+        gaussian_map_data: np.ndarray,
+        gaussian_map_label: np.ndarray
+    ) -> np.ndarray:
         """
         **Places scatterers in the tensors.**
 
@@ -87,17 +96,24 @@ class FrameGenerator:
 
         :param frame: The frame in which the scatterers are placed.
         :type frame: ``np.ndarray``
+        :param gaussian_map_data: The gaussian map used for convolution of data.
+        :type gaussian_map_data: ``np.ndarray``
+        :param gaussian_map_label: The gaussian map used for convolution of labels.
+        :type gaussian_map_label: ``np.ndarray``
         :returns: The updated frame with scatterers.
         :rtype: ``np.ndarray``.
 
         .. warning:: If a scatterer leaves the frame its coordinates will be
             set to ``np.nan`` from that timestep and beyond. 
         """
+        finished_frame = frame
+        finished_label = frame
         if self.movement:
-            for _ in range(self.num_scatter):
+            for k in range(self.num_scatter):
                 scat_pos_timeseries = []
                 for t in range(self.duration):
-                    
+                    temp_frame = np.zeros(frame[:,:,t].shape)
+                    temp_label = np.zeros(frame[:,:,t].shape)
                     # If first time step, place randomly, else make movement.
                     if t == 0:
                         x = r.randint(0, self.target_size-1)
@@ -119,20 +135,79 @@ class FrameGenerator:
                     if y < 0 or y >= self.target_size:
                         y = np.nan
 
+                    # Place scatterer
                     if all([type(x) == int, type(y) == int]):
-                        frame[x][y][t] = 1.0
+                        temp_frame[x,y] = 1.0
+                        temp_label[x,y] = 1.0
 
+                    # Convolve with gaussian map
+                    temp_frame = convolve2d(
+                        temp_frame,
+                        gaussian_map_data,
+                        'same'
+                    )
+                    temp_label = convolve2d(
+                        temp_label,
+                        gaussian_map_label,
+                        'same'
+                    )
+
+                    # Normalize and transfor max to finished frame
+                    finished_frame[:,:,t] = self._normalize(
+                        np.maximum(
+                            finished_frame[:,:,t],
+                            temp_frame
+                        )
+                    )
+                    finished_label[:,:,t] = self._normalize(
+                        np.maximum(
+                            finished_label[:,:,t],
+                            temp_label
+                        )
+                    )
                     scat_pos_timeseries.append((x, y, t))
                 self.scat_pos.append(scat_pos_timeseries)
-            return frame
+            return finished_frame, finished_label
         else:
             for _ in range(self.num_scatter):
+                temp_frame = frame
+                temp_label = frame
                 x = r.randint(0, self.target_size)
                 y = r.randint(0, self.target_size)
                 self.scat_pos.append((x, y))
-                frame[x][y] = 1.0
-            return frame
-            
+
+                # Place scatterer
+                temp_frame[x][y] = 1.0
+                temp_label[x][y] = 1.0
+
+                # Convolve with gaussian map
+                temp_frame = convolve2d(
+                    temp_frame,
+                    gaussian_map_data,
+                    'same'
+                )
+                temp_label = convolve2d(
+                    temp_label,
+                    gaussian_map_label,
+                    'same'
+                )
+
+                # Normalize and transfor max to finished frame
+                finished_frame = self._normalize(
+                    np.maximum(
+                        finished_frame,
+                        temp_frame
+                    )
+                )
+                finished_label = self._normalize(
+                    np.maximum(
+                        finished_label,
+                        temp_label
+                    )
+                )
+            return finished_frame, finished_label
+
+
     def _gaussian_map(self, sigma: float, mu: float) -> np.ndarray:
         """
         **Generates a gaussian map.**
@@ -154,6 +229,7 @@ class FrameGenerator:
         gaussian_map = np.exp(-( (distance-mu)**2 / ( 2.0 * sigma**2 ) ) )
         return gaussian_map
 
+
     def _normalize(self, frame: np.ndarray) -> np.ndarray:
         """
         **Normalizes the frame**
@@ -163,48 +239,9 @@ class FrameGenerator:
         :returns: Normalized frame.
         :rtype: ``np.ndarray`.
         """
-        if self.movement:
-            for i in range(self.duration):
-                frame[:,:,i] -= min(map(np.min, frame[:,:,i]))
-                frame[:,:,i] /= max(map(np.max, frame[:,:,i]))
-            return frame
-        else:
-            frame -= min(map(np.min, frame))
-            frame /= max(map(np.max, frame))
-            return frame
-
-    def _generate_output_from_frame(
-        self,
-        frame: np.ndarray,
-        gaussian_map_data: np.ndarray,
-        gaussian_map_label: np.ndarray,
-        ) -> np.ndarray:
-        """
-        **Generates output data from a frame by convolution.**
-
-        This function convolves the sparse tensor with a gaussian map to obtain
-        the training data. The non-convolved tensor is the label.
-
-        :param frame: The sparse tensor which is to be convolved.
-        :type frame: ``np.ndarray``. 
-        :param gaussian_map_data: The gaussian map used for convolution of data.
-        :type gaussian_map_data: ``np.ndarray``
-        :param gaussian_map_label: The gaussian map used for convolution of labels.
-        :type gaussian_map_label: ``np.ndarray``
-        :returns: Convolved tensor.
-        :rtype: ``np.ndarray``.
-        """
-        output = np.zeros(frame.shape)
-        label = np.zeros(frame.shape)
-        if self.movement:
-            for i in range(self.duration):
-                output[:,:,i] = convolve2d(frame[:,:,i], gaussian_map_data, 'same')
-                label[:,:,i] = convolve2d(frame[:,:,i], gaussian_map_label, 'same')
-            return output, label
-        else:
-            output = convolve2d(frame, gaussian_map_data, 'same')
-            label = convolve2d(frame, gaussian_map_label, 'same')
-            return output, label
+        frame -= min(map(np.min, frame))
+        frame /= max(map(np.max, frame))
+        return frame
 
  
     def generate_single_frame(
@@ -232,10 +269,8 @@ class FrameGenerator:
         :type mode: ``str``.
         """
         frame = self._make_frame()
-        frame_w_scat = self._place_scatterers(frame)
-        norm_frame = self._normalize(frame_w_scat)
-        output, label = self._generate_output_from_frame(
-            norm_frame,
+        output, label = self._place_scatterers(
+            frame,
             gaussian_map_data,
             gaussian_map_label
         )
@@ -254,6 +289,7 @@ class FrameGenerator:
             type_of_data=mode,
             container_dir=self.container_dir,
         )
+
 
     def run(self):
         """
