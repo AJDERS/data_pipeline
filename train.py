@@ -19,7 +19,7 @@ from util.callback import Callback
 from util.loader_mat import Loader
 from util.generator import DataGenerator
 from tensorflow.keras.callbacks import History
-from tensorflow.keras.optimizers import RMSprop
+from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import Precision, Recall
 from matplotlib.animation import FuncAnimation, PillowWriter 
 
@@ -218,7 +218,7 @@ class Model():
             print('Compiling model... \n')
             self.model.compile(
                 loss='mse',
-                optimizer=RMSprop(lr=0.001),
+                optimizer=Adam(lr=0.001),
                 metrics=['mean_squared_error']
             )
             self.model_compiled = True
