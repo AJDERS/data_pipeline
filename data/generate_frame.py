@@ -154,6 +154,25 @@ class FrameGenerator:
         gaussian_map = np.exp(-( (distance-mu)**2 / ( 2.0 * sigma**2 ) ) )
         return gaussian_map
 
+    def _normalize(self, frame: np.ndarray) -> np.ndarray:
+        """
+        **Normalizes the frame**
+        
+        :param frame: Frame which is to be normalized.
+        :type frame: ``np.ndarray``.
+        :returns: Normalized frame.
+        :rtype: ``np.ndarray`.
+        """
+        if self.movement:
+            for i in range(self.duration):
+                frame[:,:,i] -= min(map(np.min, frame[:,:,i]))
+                frame[:,:,i] /= max(map(np.max, frame[:,:,i]))
+            return frame
+        else:
+            frame -= min(map(np.min, frame))
+            frame /= max(map(np.max, frame))
+            return frame
+
     def _generate_output_from_frame(
         self,
         frame: np.ndarray,
@@ -214,8 +233,9 @@ class FrameGenerator:
         """
         frame = self._make_frame()
         frame_w_scat = self._place_scatterers(frame)
+        norm_frame = self._normalize(frame_w_scat)
         output, label = self._generate_output_from_frame(
-            frame_w_scat,
+            norm_frame,
             gaussian_map_data,
             gaussian_map_label
         )
