@@ -292,15 +292,39 @@ class Model():
                     self.valid_X,
                     self.valid_Y
                 )
-
         if not self.loaded_model:
             # step_per_epoch * batch_size = # number of datapoints
             batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
             steps_per_epoch = int(self.train_X.shape[0] / batch_size)
             logging.info(f'steps per epoch: {steps_per_epoch}')
             logging.info(f'batch size: {batch_size}')
-            if not self.with_validation_gen:
-                print('Fitting model without validation generator... \n')
+            history = self._fit(batch_size, steps_per_epoch)
+            return history
+        else:
+            print('Model is already loaded.')
+
+    def _fit(self, batch_size: int, steps_per_epoch: int) -> Type[History]:
+        """
+        **Fits a predefined model with given parameters.**
+
+        Fits the predefined model with the given parameters, either with data
+        loaded in memory, or from
+        """
+        if not self.with_validation_gen:
+            print('Fitting model without validation generator... \n')
+            if self.config['TRAINING'].getboolean('InMemory'):
+                print('Fitting model with data in memory... \n')
+                history = self.model.fit(
+                    self.train_X,
+                    self.train_Y,
+                    batch_size = batch_size,
+                    steps_per_epoch=steps_per_epoch,  
+                    epochs=self.config['TRAINING'].getint('Epochs'),
+                    verbose=1,
+                    callbacks=[self.callback]
+                )
+            else:
+                print('Fitting model with data from generator... \n')
                 history = self.model.fit(
                     self.train_generator,
                     batch_size = batch_size,
@@ -309,11 +333,25 @@ class Model():
                     verbose=1,
                     callbacks=[self.callback]
                 )
-                self.broadcast(history)
-                self.model.save(f'model_{dt_string}')
-                return history
+            self.broadcast(history)
+            self.model.save(f'model_{dt_string}')
+            return history
+        else:
+            print('Fitting model with validation generator... \n')
+            if self.config['TRAINING'].getboolean('InMemory'):
+                print('Fitting model with data in memory... \n')
+                history = self.model.fit(
+                    self.train_X,
+                    self.train_Y,
+                    steps_per_epoch=steps_per_epoch, 
+                    epochs=self.config['TRAINING'].getint('Epochs'),
+                    verbose=1,
+                    validation_data=(self.valid_X, self.valid_Y),
+                    validation_steps=steps_per_epoch, # Note only uses half of validation data in each epoch
+                    callbacks=[self.callback]
+                )
             else:
-                print('Fitting model with validation generator... \n')
+                print('Fitting model with data from generator... \n')
                 history = self.model.fit(
                     self.train_generator,
                     steps_per_epoch=steps_per_epoch, 
@@ -323,11 +361,10 @@ class Model():
                     validation_steps=steps_per_epoch, # Note only uses half of validation data in each epoch
                     callbacks=[self.callback]
                 )
-                self.broadcast(history)
-                self.model.save(f'model_{dt_string}')
-                return history
-        else:
-            print('Model is already loaded.')
+            self.broadcast(history)
+            self.model.save(f'model_{dt_string}')
+            return history
+
 
     def illustrate_history(self,
         history: Type[History]) -> None:
