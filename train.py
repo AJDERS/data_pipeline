@@ -305,7 +305,10 @@ class Model():
 
     def _fit(self, batch_size: int, steps_per_epoch: int) -> Type[History]:
         """
-        **
+        **Fits a predefined model with given parameters.**
+
+        Fits the predefined model with the given parameters, either with data
+        loaded in memory, or from
         """
         if not self.with_validation_gen:
             print('Fitting model without validation generator... \n')
