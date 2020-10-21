@@ -114,6 +114,7 @@ class FrameGenerator:
                 for t in range(self.duration):
                     temp_frame = np.zeros(frame[:,:,t].shape)
                     temp_label = np.zeros(frame[:,:,t].shape)
+
                     # If first time step, place randomly, else make movement.
                     if t == 0:
                         x = r.randint(0, self.target_size-1)
@@ -139,6 +140,7 @@ class FrameGenerator:
                     if all([type(x) == int, type(y) == int]):
                         temp_frame[x,y] = 1.0
                         temp_label[x,y] = 1.0
+
 
                     # Convolve with gaussian map
                     temp_frame = convolve2d(
@@ -239,8 +241,12 @@ class FrameGenerator:
         :returns: Normalized frame.
         :rtype: ``np.ndarray`.
         """
-        frame -= min(map(np.min, frame))
-        frame /= max(map(np.max, frame))
+        assert (frame >= 0.0).all()
+        maximum = max(map(np.max, frame))
+        minimum = min(map(np.min, frame))
+        if minimum < maximum:
+            frame -= minimum
+            frame /= maximum
         return frame
 
  
