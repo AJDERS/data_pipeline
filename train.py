@@ -153,6 +153,10 @@ class Model():
         fig.set_size_inches(ncols * 4, nrows * 4)
         train_data_dirs, _ = self._get_data_dirs()
         pic_index = random.randint(0, len(train_data_dirs))
+        if pic_index < 8:
+            pic_index = 0
+        if pic_index > len(train_data_dirs) - 8:
+            pic_index = len(train_data_dirs) - 8
         next_train_pix = train_data_dirs[pic_index-8:pic_index]
 
         if self.config['DATA'].getboolean('Movement'):
@@ -173,7 +177,7 @@ class Model():
             ani = FuncAnimation(
                 fig,
                 lambda i: _update(next_train_pix, i),
-                list(range(duration))[1:],
+                list(range(duration)),
                 init_func=_update(next_train_pix, 0)
             )  
             writer = PillowWriter(fps=duration)  
