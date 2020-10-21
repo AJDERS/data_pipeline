@@ -9,6 +9,7 @@ import keras
 import logging
 import random
 import configparser
+import importlib
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -203,12 +204,11 @@ class Model():
         """
         if not self.loaded_model:
             print('Building model... \n')
-            if self.config['DATA'].getboolean('Movement'):
-                import models.unet3d as UNet3D
-                self.model = UNet3D.create_model(self.config)
-            else:
-                import models.unet as UNet
-                self.model = UNet.create_model(self.config)
+            model = importlib.import_module(
+                self.config['MODEL'].get('ModelName'),
+                package=None
+            )
+            self.model = model.create_model(self.config)
         else:
             print('Model is already loaded.')
 
@@ -221,7 +221,7 @@ class Model():
         if not self.loaded_model:
             print('Compiling model... \n')
             self.model.compile(
-                loss='mse',
+                loss='mean_squared_error',
                 optimizer=Adam(lr=0.001),
                 metrics=['mean_squared_error']
             )
@@ -393,6 +393,11 @@ class Model():
             plt.xlabel('epoch')
             plt.legend(['train', 'test'], loc='upper left')
             plt.savefig(f'output/{key}_{dt_string}.png')
+
+    def _layer_shapes(self, model):
+        for l in model.layers:
+            print(l.output_shape)
+
 
     def broadcast(self,
         history: Type[History]) -> None:
