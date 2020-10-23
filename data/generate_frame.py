@@ -342,3 +342,14 @@ class FrameGenerator:
                     'validation'
                 ) for i in tqdm(range(self.num_data_valid))
         )
+
+        print('Making evaluation data.')
+        Parallel(n_jobs=num_cores)(
+            delayed(self.generate_single_frame)
+                (
+                    gaussian_map_data,
+                    gaussian_map_label,
+                    i,
+                    'evaluation'
+                ) for i in tqdm(range(self.num_data_valid))
+        )
