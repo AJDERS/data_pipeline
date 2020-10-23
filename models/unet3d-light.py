@@ -85,7 +85,5 @@ def create_model(conf):
         kernel_initializer=initializer,
         name='output_layer'
     )(d0)
-    print(output_data.shape)
     output_data = _activation(output_data, output_activation)  
-    print(output_data.shape)
     return Model(inputs=input_data, outputs=output_data)
