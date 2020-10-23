@@ -63,6 +63,7 @@ class Model():
         self.valid_Y = None
         self.train_generator = None
         self.valid_generator = None
+        random.seed(self.config['PIPELINE'].getint('Seed'))
 
     def _get_data_dirs(self) -> tuple:
         """
@@ -362,7 +363,7 @@ class Model():
                     epochs=self.config['TRAINING'].getint('Epochs'),
                     verbose=1,
                     validation_data=self.valid_generator,
-                    validation_steps=steps_per_epoch, # Note only uses half of validation data in each epoch
+                    validation_steps=steps_per_epoch*2, # Note only uses half of validation data in each epoch
                     callbacks=[self.callback]
                 )
             self.broadcast(history)

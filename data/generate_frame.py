@@ -36,6 +36,7 @@ class FrameGenerator:
         self.duration = self.config['DATA'].getint('MovementDuration')
         self.angle = self.config['DATA'].getint('MovementAngle') * (np.pi / 180.0)
         self.scat_pos = []
+        r.seed(self.config['PIPELINE'].getint('Seed'))
 
 
     def _make_frame(self) -> np.ndarray:
