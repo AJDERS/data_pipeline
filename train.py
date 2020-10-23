@@ -19,6 +19,7 @@ from datetime import datetime
 from util.callback import Callback
 from util.loader_mat import Loader
 from util.generator import DataGenerator
+from tensorflow.random import set_seed
 from tensorflow.keras.callbacks import History
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import Precision, Recall
@@ -63,6 +64,8 @@ class Model():
         self.valid_Y = None
         self.train_generator = None
         self.valid_generator = None
+        random.seed(self.config['PIPELINE'].getint('Seed'))
+        set_seed(self.config['PIPELINE'].getint('Seed'))
 
     def _get_data_dirs(self) -> tuple:
         """
@@ -362,7 +365,7 @@ class Model():
                     epochs=self.config['TRAINING'].getint('Epochs'),
                     verbose=1,
                     validation_data=self.valid_generator,
-                    validation_steps=steps_per_epoch, # Note only uses half of validation data in each epoch
+                    validation_steps=steps_per_epoch*2, # Note only uses half of validation data in each epoch
                     callbacks=[self.callback]
                 )
             self.broadcast(history)

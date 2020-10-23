@@ -39,6 +39,8 @@ class FrameGenerator:
         self.tracks = self.config['DATA'].getboolean('Tracks')
         msg = 'One and only one output format must be set.'
         assert self.stacks != self.tracks, msg
+        r.seed(self.config['PIPELINE'].getint('Seed'))
+
 
     def _make_frame(self) -> np.ndarray:
         """
@@ -412,5 +414,16 @@ class FrameGenerator:
                     gaussian_map_label,
                     i,
                     'validation'
+                ) for i in tqdm(range(self.num_data_valid))
+        )
+
+        print('Making evaluation data.')
+        Parallel(n_jobs=num_cores)(
+            delayed(self.generate_single_frame)
+                (
+                    gaussian_map_data,
+                    gaussian_map_label,
+                    i,
+                    'evaluation'
                 ) for i in tqdm(range(self.num_data_valid))
         )
