@@ -19,6 +19,7 @@ from datetime import datetime
 from util.callback import Callback
 from util.loader_mat import Loader
 from util.generator import DataGenerator
+from tensorflow import set_random_seed
 from tensorflow.keras.callbacks import History
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import Precision, Recall
@@ -64,6 +65,7 @@ class Model():
         self.train_generator = None
         self.valid_generator = None
         random.seed(self.config['PIPELINE'].getint('Seed'))
+        set_random_seed(self.config['PIPELINE'].getint('Seed'))
 
     def _get_data_dirs(self) -> tuple:
         """
