@@ -58,6 +58,8 @@ class Model():
         self.loaded_model = False
         self.model_compiled = False
         self.with_validation_gen = True
+        self.predicted_data = False
+        self.fitted = False
         self.train_X = None
         self.train_Y = None
         self.valid_X = None
@@ -340,6 +342,7 @@ class Model():
                     verbose=1,
                     callbacks=[self.callback]
                 )
+            self.fitted = True
             self.broadcast(history)
             self.model.save(f'model_{dt_string}')
             return history
@@ -368,10 +371,75 @@ class Model():
                     validation_steps=steps_per_epoch*2, # Note only uses half of validation data in each epoch
                     callbacks=[self.callback]
                 )
+            self.fitted = True
             self.broadcast(history)
             self.model.save(f'model_{dt_string}')
             return history
 
+    def predict(self) -> list:
+        assert self.fitted, 'Model is not fitted.'
+        self.predicted_data = True
+        self.eval_X = self.loader.load_array_folder(
+            source_path = os.path.join(self.eval_path,'data'),
+            type_of_data = 'data'
+        )
+        batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
+        batch = self.eval_X[0:batch_size]
+        predicted_batch = self.model.predict(batch)
+        return batch, predicted_batch
+
+    def compare_predict(self) -> None:
+        # Generates frames.
+        batch, predicted_batch = self.predict()
+        nrows = 2
+        ncols = 4
+        fig = plt.gcf()
+        fig.set_size_inches(ncols * 4, nrows * 4)
+        predicted_stacks = predicted_batch[0:4]
+        print(predicted_stacks.shape)
+        stacks = batch[0:4]
+
+        if self.config['DATA'].getboolean('Movement'):   
+            def _update(predicted_stacks, stacks, index):
+                for i in range(len(predicted_stacks)):
+                    msg = 'Movement = True, but data does not have rank 5.'
+                    assert len(predicted_stacks.shape) == 5, msg
+
+                    name = f'Stack {i}.'
+                    sp = plt.subplot(nrows, ncols, i + 1)
+                    sp.set_title(f'{name}')
+                    plt.imshow(stacks[i,:,:,index])
+
+                    p_name = f'Predicted stack {i}.'
+                    sp = plt.subplot(nrows, ncols, i + 5)
+                    sp.set_title(f'{p_name}')
+                    plt.imshow(predicted_stacks[i,:,:,index])
+
+            duration = self.config['DATA'].getint('MovementDuration')
+            ani = FuncAnimation(
+                fig,
+                lambda i: _update(predicted_stacks, stacks, i),
+                list(range(duration)),
+                init_func=_update(predicted_stacks, stacks, 0)
+            )  
+            writer = PillowWriter(fps=duration)  
+            ani.save(f"output/compare_{dt_string}.gif", writer=writer) 
+        else:
+            for i in range(len(predicted_stacks)):
+                msg = 'Movement = False, but data does not have rank 4.'
+                assert len(predicted_stacks.shape) == 4, msg
+
+                name = f'Stack {i}.'
+                sp = plt.subplot(nrows, ncols, i + 1)
+                sp.set_title(f'{name}')
+                plt.imshow(stacks[i])
+
+                p_name = f'Predicted stack {i}.'
+                sp = plt.subplot(nrows, ncols, i + 5)
+                sp.set_title(f'{p_name}')
+                plt.imshow(predicted_stacks[i])
+
+            plt.savefig(f'output/compare_{dt_string}.png')
 
     def illustrate_history(self,
         history: Type[History]) -> None:
