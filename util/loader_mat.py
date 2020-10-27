@@ -46,7 +46,7 @@ class Loader():
 
     def decompress_load(self, path):
         gzipped_file_data = gzip.GzipFile(path, 'r')
-        array = np.load(gzipped_file_data)
+        array = np.load(gzipped_file_data, allow_pickle=True)
         return array
 
     def load_array_folder(

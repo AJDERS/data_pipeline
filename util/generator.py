@@ -39,6 +39,8 @@ class DataGenerator:
     """
     def __init__(self, X, Y, mode, config):
         self.config = config
+        self.stacks = self.config['DATA'].getboolean('Stacks')
+        self.tracks = self.config['DATA'].getboolean('Tracks')
         self.X = X
         self.Y = Y
         self.mode = mode
@@ -50,7 +52,10 @@ class DataGenerator:
         assert self.mode in ['training', 'validation', 'evaluation'], msg
         assert type(self.X) == np.ndarray, 'X must be np.ndarray.'
         assert type(self.Y) == np.ndarray, 'Y must be np.ndarray.'
-        assert self.X.shape == self.Y.shape, 'X and Y must have same shape.'
+        if self.stacks:
+            assert self.X.shape == self.Y.shape, 'X and Y must have same shape.'
+        if self.tracks:
+            assert self.X.shape[0] == self.Y.shape[0], 'X and Y must have same shape.'
 
     def _get_config(self):
         if self.mode == 'training':

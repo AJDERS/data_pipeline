@@ -364,7 +364,7 @@ class FrameGenerator:
         if self.tracks:
             tracks = self._make_tracks(scat_pos)
             loader.compress_and_save(
-                array=label,
+                array=tracks,
                 data_type='labels',
                 name=str(index).zfill(5),
                 type_of_data=mode,

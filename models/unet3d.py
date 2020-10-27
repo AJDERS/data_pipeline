@@ -2,7 +2,7 @@ import sys
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Conv3D, UpSampling2D, BatchNormalization, LeakyReLU, Concatenate, ReLU, Activation, \
-    MaxPool3D, Conv3DTranspose, SeparableConv2D, Add, Dropout, AvgPool2D
+    MaxPool3D, Conv3DTranspose, SeparableConv2D, Add, Dropout, AvgPool2D, Conv2D
 from tensorflow.keras.models import Model, Sequential
 from .layers.layers import SubPixel3D
 
@@ -272,6 +272,9 @@ def create_model(conf):
     dropout_wrn = conf['MODEL'].getboolean('DropOutWarning')
     skip_connection = conf['MODEL'].get('SkipConnection')
     dropout_encoder_only = conf['MODEL'].getboolean('DropOutEncoderOnly')
+    stacks = conf['DATA'].getboolean('Stacks')
+    tracks = conf['DATA'].getboolean('Tracks')
+    assert stacks != tracks, 'One and only one output format must be set.'
 
 
     input_size = (target_size, target_size, duration, 1)
@@ -409,15 +412,32 @@ def create_model(conf):
     elif skip_connection == 'add':
         Add(name='add_skip_3')([s0, d2])
 
-    # Output layer 2*ts x 2*ts x 64 > ts x ts x 1
-    output_data = Conv3D(
-        filters=1,
-        kernel_size=1,
-        padding=padding,
-        kernel_initializer=initializer,
-        name='output_layer'
-    )(d2)
+    if stacks:
+            # Output layer 2*ts x 2*ts x 64 > ts x ts x 1
+        output_data = Conv3D(
+            filters=1,
+            kernel_size=1,
+            padding=padding,
+            kernel_initializer=initializer,
+            name='output_layer'
+        )(d2)
+        output_data = _activation(output_data, output_activation)
+
+    if tracks:
+            # Output layer 2*ts x 2*ts x 64 > ts x ts x 1
+        d2 = tf.keras.layers.Add()(
+            [d2[:,:,:,f,:] for f in range(duration)]
+        )
+        output_data = Conv2D(
+            filters=1,
+            kernel_size=1,
+            padding=padding,
+            kernel_initializer=initializer,
+            name='output_layer'
+        )(d2)
+        output_data = _activation(output_data, output_activation)
     
-    output_data = _activation(output_data, output_activation)  
+
+
 
     return Model(inputs=input_data, outputs=output_data)
