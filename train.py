@@ -19,8 +19,8 @@ from datetime import datetime
 from util.callback import Callback
 from util.loader_mat import Loader
 from util.generator import DataGenerator
-from tensorflow.random import set_seed
 from tensorflow.keras.callbacks import History
+from tensorflow.python.keras import backend
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import Precision, Recall
 from matplotlib.animation import FuncAnimation, PillowWriter 
@@ -66,8 +66,18 @@ class Model():
         self.valid_Y = None
         self.train_generator = None
         self.valid_generator = None
-        random.seed(self.config['PIPELINE'].getint('Seed'))
-        set_seed(self.config['PIPELINE'].getint('Seed'))
+        self._reset_seeds()
+
+    def _reset_seeds(self):
+        seed = self.config['PIPELINE'].getint('Seed')
+        backend.clear_session()
+        tf.compat.v1.reset_default_graph()
+        print("KERAS AND TENSORFLOW GRAPHS RESET")
+
+        np.random.seed(seed)
+        random.seed(seed)
+        tf.compat.v1.set_random_seed(seed)
+        print("RANDOM SEEDS RESET")
 
     def _get_data_dirs(self) -> tuple:
         """
@@ -139,6 +149,7 @@ class Model():
         try:
             reconstructed_model = keras.models.load_model(model_path)
             self.loaded_model = True
+            self.fitted = True
             reconstructed_model.summary()
             return reconstructed_model
         except FileNotFoundError:
@@ -257,6 +268,8 @@ class Model():
 
         :rtype: `tensorflow.keras.History``
         """
+        self._reset_seeds()
+
         if not self.model:
             self.build_model()
         
@@ -357,6 +370,7 @@ class Model():
             self.fitted = True
             self.broadcast(history)
             self.model.save(f'model_{dt_string}')
+            backend.clear_session()
             return history
         else:
             print('Fitting model with validation generator... \n')
@@ -386,6 +400,7 @@ class Model():
             self.fitted = True
             self.broadcast(history)
             self.model.save(f'model_{dt_string}')
+            backend.clear_session()
             return history
 
     def predict(self) -> list:
