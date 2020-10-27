@@ -310,6 +310,17 @@ class Model():
         else:
             print('Model is already loaded.')
 
+    def _checkpoints(self):
+        checkpoint_path = "./output/checkpoints/cp-{epoch:04d}.ckpt"
+
+        cp_callback = tf.keras.callbacks.ModelCheckpoint(
+           checkpoint_path,
+           verbose=1,
+           save_weights_only=True,
+           save_best_only=True
+        )
+        return cp_callback
+
     def _fit(self, batch_size: int, steps_per_epoch: int) -> Type[History]:
         """
         **Fits a predefined model with given parameters.**
@@ -317,6 +328,7 @@ class Model():
         Fits the predefined model with the given parameters, either with data
         loaded in memory, or from
         """
+        checkpoint = self._checkpoints()
         if not self.with_validation_gen:
             print('Fitting model without validation generator... \n')
             if self.config['TRAINING'].getboolean('InMemory'):
@@ -328,7 +340,7 @@ class Model():
                     steps_per_epoch=steps_per_epoch,  
                     epochs=self.config['TRAINING'].getint('Epochs'),
                     verbose=1,
-                    callbacks=[self.callback]
+                    callbacks=[self.callback, checkpoint]
                 )
             else:
                 print('Fitting model with data from generator... \n')
@@ -338,7 +350,7 @@ class Model():
                     steps_per_epoch=steps_per_epoch,  
                     epochs=self.config['TRAINING'].getint('Epochs'),
                     verbose=1,
-                    callbacks=[self.callback]
+                    callbacks=[self.callback, checkpoint]
                 )
             self.broadcast(history)
             self.model.save(f'model_{dt_string}')
@@ -355,7 +367,7 @@ class Model():
                     verbose=1,
                     validation_data=(self.valid_X, self.valid_Y),
                     validation_steps=steps_per_epoch, # Note only uses half of validation data in each epoch
-                    callbacks=[self.callback]
+                    callbacks=[self.callback, checkpoint]
                 )
             else:
                 print('Fitting model with data from generator... \n')
@@ -366,7 +378,7 @@ class Model():
                     verbose=1,
                     validation_data=self.valid_generator,
                     validation_steps=steps_per_epoch*2, # Note only uses half of validation data in each epoch
-                    callbacks=[self.callback]
+                    callbacks=[self.callback, checkpoint]
                 )
             self.broadcast(history)
             self.model.save(f'model_{dt_string}')
