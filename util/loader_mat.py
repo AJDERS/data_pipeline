@@ -46,7 +46,7 @@ class Loader():
 
     def decompress_load(self, path):
         gzipped_file_data = gzip.GzipFile(path, 'r')
-        array = np.load(gzipped_file_data)
+        array = np.load(gzipped_file_data, allow_pickle=True)
         return array
 
     def load_array_folder(
@@ -58,7 +58,7 @@ class Loader():
 
         assert type_of_data in ['data', 'labels']
         folder = os.path.join(source_path)
-        file_names = os.listdir(folder)
+        file_names = sorted(os.listdir(folder))
 
         loaded_arrays = []
         print(f'Loading {type_of_data} from storage... \n')

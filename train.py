@@ -9,6 +9,7 @@ import keras
 import logging
 import random
 import configparser
+import importlib
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
@@ -19,9 +20,10 @@ from util.callback import Callback
 from util.loader_mat import Loader
 from util.generator import DataGenerator
 from tensorflow.keras.callbacks import History
+from tensorflow.python.keras import backend
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import Precision, Recall
-from matplotlib.animation import FuncAnimation, PillowWriter 
+from matplotlib.animation import FuncAnimation, PillowWriter
 
 
 now = datetime.now()
@@ -55,13 +57,28 @@ class Model():
         self.model = None
         self.loaded_model = False
         self.model_compiled = False
-        self.with_validation_gen = True
+        self.predicted_data = False
+        self.fitted = False
         self.train_X = None
         self.train_Y = None
         self.valid_X = None
         self.valid_Y = None
+        self.eval_X = None
+        self.eval_Y = None
         self.train_generator = None
         self.valid_generator = None
+        self._reset_seeds()
+
+    def _reset_seeds(self):
+        seed = self.config['PIPELINE'].getint('Seed')
+        backend.clear_session()
+        tf.compat.v1.reset_default_graph()
+        print("KERAS AND TENSORFLOW GRAPHS RESET")
+
+        np.random.seed(seed)
+        random.seed(seed)
+        tf.compat.v1.set_random_seed(seed)
+        print("RANDOM SEEDS RESET")
 
     def _get_data_dirs(self) -> tuple:
         """
@@ -87,11 +104,38 @@ class Model():
         valid_data_dirs = [os.path.join(valid_data,fname) for
             fname in valid_data_names]
 
-        # # Directory with our evaluation data arrays
-        # eval_data = os.path.join(self.eval_path, 'data')
-        # eval_data_names = os.listdir(eval_data)
+        # Directory with our testing data arrays
+        eval_data = os.path.join(self.eval_path, 'data')
+        eval_data_names = os.listdir(eval_data)
+        eval_data_dirs = [os.path.join(eval_data,fname) for
+            fname in eval_data_names]
 
-        return train_data_dirs, valid_data_dirs
+        # Directory with our training label arrays
+        train_label = os.path.join(self.train_path, 'labels')
+        train_label_names = os.listdir(train_label)
+        train_label_dirs = [os.path.join(train_label,fname) for
+            fname in train_label_names]
+
+        # Directory with our testing data arrays
+        valid_label = os.path.join(self.valid_path, 'labels')
+        valid_label_names = os.listdir(valid_label)
+        valid_label_dirs = [os.path.join(valid_label,fname) for
+            fname in valid_label_names]
+
+        # Directory with our testing data arrays
+        eval_label = os.path.join(self.eval_path, 'labels')
+        eval_label_names = os.listdir(eval_label)
+        eval_label_dirs = [os.path.join(eval_label,fname) for
+            fname in eval_label_names]
+
+        return [
+            train_data_dirs,
+            valid_data_dirs,
+            eval_data_dirs,
+            train_label_dirs,
+            valid_label_dirs,
+            eval_label_dirs
+        ]
 
     def generator(self,
         mode: str,
@@ -133,12 +177,19 @@ class Model():
         try:
             reconstructed_model = keras.models.load_model(model_path)
             self.loaded_model = True
+            self.fitted = True
             reconstructed_model.summary()
             return reconstructed_model
         except FileNotFoundError:
             return FileNotFoundError
 
-    def print_img(self) -> None:
+    def _load_from_checkpoint(self, checkpoint_path: str) -> None:
+        latest = tf.train.latest_checkpoint('output/checkpoints')
+        self.build_model()
+        self.fitted = True
+        self.model.load_weights(latest)
+
+    def print_img(self, mode: str) -> None:
         """
         **Saves a plot of 8 examples of input data.**
 
@@ -147,18 +198,42 @@ class Model():
         where ``dt_string`` is the current data and hour in the format:
         ``{ddmmyyyy-hh}``.
         """
-        nrows = 2
+        [
+            train_data_dirs,
+            valid_data_dirs,
+            eval_data_dirs,
+            train_label_dirs,
+            valid_label_dirs,
+            eval_label_dirs
+        ] = self._get_data_dirs()
+        if mode == 'training':
+            dirs = train_data_dirs
+            l_dirs = train_label_dirs
+        elif mode == 'validation':
+            dirs = valid_data_dirs
+            l_dirs = valid_label_dirs
+        elif mode == 'evaluation':
+            dirs = eval_data_dirs
+            l_dirs = eval_label_dirs
+
+        nrows = 4
         ncols = 4
         fig = plt.gcf()
         fig.set_size_inches(ncols * 4, nrows * 4)
-        train_data_dirs, _ = self._get_data_dirs()
-        pic_index = random.randint(0, len(train_data_dirs))
-        next_train_pix = train_data_dirs[pic_index-8:pic_index]
+        fig.patch.set_facecolor('white')
+        
+        pic_index = random.randint(0, len(dirs))
+        if pic_index < 8:
+            pic_index = 0
+        if pic_index > len(dirs) - 8:
+            pic_index = len(dirs) - 8
+        next_pix = dirs[pic_index-8:pic_index] + l_dirs[pic_index-8:pic_index]
+
 
         if self.config['DATA'].getboolean('Movement'):
             # Generates frames.
-            def _update(next_train_pix, index):
-                for i, img_path in enumerate(next_train_pix):
+            def _update(next_pix, index):
+                for i, img_path in enumerate(next_pix):
                     # Set up subplot; subplot indices start at 1
                     name = '/'.join(img_path.split('/')[-2:])
                     sp = plt.subplot(nrows, ncols, i + 1)
@@ -172,14 +247,14 @@ class Model():
             duration = self.config['DATA'].getint('MovementDuration')
             ani = FuncAnimation(
                 fig,
-                lambda i: _update(next_train_pix, i),
-                list(range(duration))[1:],
-                init_func=_update(next_train_pix, 0)
+                lambda i: _update(next_pix, i),
+                list(range(duration)),
+                init_func=_update(next_pix, 0)
             )  
             writer = PillowWriter(fps=duration)  
-            ani.save(f"output/examples_{dt_string}.gif", writer=writer) 
+            ani.save(f"output/examples_{mode}_{dt_string}.gif", writer=writer) 
         else:
-            for i, img_path in enumerate(next_train_pix):
+            for i, img_path in enumerate(next_pix):
                 # Set up subplot; subplot indices start at 1
                 name = '/'.join(img_path.split('/')[-2:])
                 sp = plt.subplot(nrows, ncols, i + 1)
@@ -188,7 +263,7 @@ class Model():
                 msg = 'Movement = False, but data does not have rank 2.'
                 assert len(array.shape) == 2, msg
                 plt.imshow(array)
-            plt.savefig(f'output/examples_{dt_string}.png')
+            plt.savefig(f'output/examples_{mode}_{dt_string}.png')
 
     def build_model(self) -> None:
         """
@@ -199,12 +274,11 @@ class Model():
         """
         if not self.loaded_model:
             print('Building model... \n')
-            if self.config['DATA'].getboolean('Movement'):
-                import models.unet3d as UNet3D
-                self.model = UNet3D.create_model(self.config)
-            else:
-                import models.unet as UNet
-                self.model = UNet.create_model(self.config)
+            model = importlib.import_module(
+                self.config['MODEL'].get('ModelName'),
+                package=None
+            )
+            self.model = model.create_model(self.config)
         else:
             print('Model is already loaded.')
 
@@ -217,9 +291,10 @@ class Model():
         if not self.loaded_model:
             print('Compiling model... \n')
             self.model.compile(
-                loss='mse',
+                loss='mean_squared_error',
                 optimizer=Adam(lr=0.001),
-                metrics=['mean_squared_error']
+                metrics=['mean_squared_error'],
+                run_eagerly=True
             )
             self.model_compiled = True
         else:
@@ -248,6 +323,8 @@ class Model():
 
         :rtype: `tensorflow.keras.History``
         """
+        self._reset_seeds()
+
         if not self.model:
             self.build_model()
         
@@ -292,42 +369,179 @@ class Model():
                     self.valid_X,
                     self.valid_Y
                 )
-
         if not self.loaded_model:
             # step_per_epoch * batch_size = # number of datapoints
             batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
             steps_per_epoch = int(self.train_X.shape[0] / batch_size)
             logging.info(f'steps per epoch: {steps_per_epoch}')
             logging.info(f'batch size: {batch_size}')
-            if not self.with_validation_gen:
-                print('Fitting model without validation generator... \n')
+            history = self._fit(batch_size, steps_per_epoch)
+            return history
+        else:
+            print('Model is already loaded.')
+
+    def _checkpoints(self):
+        checkpoint_path = "./output/checkpoints/cp-{epoch:04d}.ckpt"
+
+        cp_callback = tf.keras.callbacks.ModelCheckpoint(
+           checkpoint_path,
+           verbose=1,
+           save_weights_only=True,
+           save_best_only=True
+        )
+        return cp_callback
+
+    def _fit(self, batch_size: int, steps_per_epoch: int) -> Type[History]:
+        """
+        **Fits a predefined model with given parameters.**
+
+        Fits the predefined model with the given parameters, either with data
+        loaded in memory, or from
+        """
+        checkpoint = self._checkpoints()
+        if not self.config['TRAINING'].getboolean('WithValidationGenerator'):
+            print('Fitting model without validation generator... \n')
+            if self.config['TRAINING'].getboolean('InMemory'):
+                print('Fitting model with data in memory... \n')
+                history = self.model.fit(
+                    self.train_X,
+                    self.train_Y,
+                    batch_size = batch_size,
+                    steps_per_epoch=steps_per_epoch,  
+                    epochs=self.config['TRAINING'].getint('Epochs'),
+                    verbose=1,
+                    callbacks=[self.callback, checkpoint]
+                )
+            else:
+                print('Fitting model with data from generator... \n')
                 history = self.model.fit(
                     self.train_generator,
                     batch_size = batch_size,
                     steps_per_epoch=steps_per_epoch,  
                     epochs=self.config['TRAINING'].getint('Epochs'),
                     verbose=1,
-                    callbacks=[self.callback]
+                    callbacks=[self.callback, checkpoint]
                 )
-                self.broadcast(history)
-                self.model.save(f'model_{dt_string}')
-                return history
+            self.fitted = True
+            self.broadcast(history)
+            self.model.save(f'model_{dt_string}')
+            backend.clear_session()
+            return history
+        else:
+            print('Fitting model with validation generator... \n')
+            if self.config['TRAINING'].getboolean('InMemory'):
+                print('Fitting model with data in memory... \n')
+                history = self.model.fit(
+                    self.train_X,
+                    self.train_Y,
+                    steps_per_epoch=steps_per_epoch, 
+                    epochs=self.config['TRAINING'].getint('Epochs'),
+                    verbose=1,
+                    validation_data=(self.valid_X, self.valid_Y),
+                    validation_steps=steps_per_epoch, 
+                    callbacks=[self.callback, checkpoint]
+                )
             else:
-                print('Fitting model with validation generator... \n')
+                print('Fitting model with data from generator... \n')
                 history = self.model.fit(
                     self.train_generator,
                     steps_per_epoch=steps_per_epoch, 
                     epochs=self.config['TRAINING'].getint('Epochs'),
                     verbose=1,
                     validation_data=self.valid_generator,
-                    validation_steps=steps_per_epoch, # Note only uses half of validation data in each epoch
-                    callbacks=[self.callback]
+                    validation_steps=steps_per_epoch, 
+                    callbacks=[self.callback, checkpoint]
                 )
-                self.broadcast(history)
-                self.model.save(f'model_{dt_string}')
-                return history
+            self.fitted = True
+            self.broadcast(history)
+            self.model.save(f'model_{dt_string}')
+            backend.clear_session()
+            return history
+
+    def predict(self, mode: str) -> list:
+        assert self.fitted, 'Model is not fitted.'
+        self.predicted_data = True
+        if mode == 'training':
+            if self.train_X is not None:
+                data = self.train_X
+            else:
+                data = self.loader.load_array_folder(
+                    source_path = os.path.join(self.train_path,'data'),
+                    type_of_data = 'data'
+                )
+        elif mode == 'validation':
+            if self.valid_X is not None:
+                data = self.valid_X
+            else:
+                data = self.loader.load_array_folder(
+                    source_path = os.path.join(self.valid_path,'data'),
+                    type_of_data = 'data'
+                )
+        elif mode == 'evaluation':
+            if self.eval_X is not None:
+                data = self.eval_X
+            else:
+                data = self.loader.load_array_folder(
+                    source_path = os.path.join(self.eval_path,'data'),
+                    type_of_data = 'data'
+                )
+        batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
+        batch = data[0:batch_size]
+        predicted_batch = self.model.predict(batch)
+        return batch, predicted_batch
+
+    def compare_predict(self, mode: str) -> None:
+        # Generates frames.
+        batch, predicted_batch = self.predict(mode)
+        nrows = 2
+        ncols = 4
+        fig = plt.gcf()
+        fig.set_size_inches(ncols * 4, nrows * 4)
+        fig.patch.set_facecolor('white')
+        predicted_stacks = predicted_batch[0:4]
+        stacks = batch[0:4]
+
+        if self.config['DATA'].getboolean('Movement'):   
+            def _update(predicted_stacks, stacks, index):
+                for i in range(len(predicted_stacks)):
+                    msg = 'Movement = True, but data does not have rank 5.'
+                    assert len(predicted_stacks.shape) == 5, msg
+
+                    name = f'Stack {i}.'
+                    sp = plt.subplot(nrows, ncols, i + 1)
+                    sp.set_title(f'{name}')
+                    plt.imshow(stacks[i,:,:,index])
+
+                    p_name = f'Predicted stack {i}.'
+                    sp = plt.subplot(nrows, ncols, i + 5)
+                    sp.set_title(f'{p_name}')
+                    plt.imshow(predicted_stacks[i,:,:,index])
+
+            duration = self.config['DATA'].getint('MovementDuration')
+            ani = FuncAnimation(
+                fig,
+                lambda i: _update(predicted_stacks, stacks, i),
+                list(range(duration)),
+                init_func=_update(predicted_stacks, stacks, 0)
+            )  
+            writer = PillowWriter(fps=duration)  
+            ani.save(f"output/compare_{mode}_{dt_string}.gif", writer=writer) 
         else:
-            print('Model is already loaded.')
+            for i in range(len(predicted_stacks)):
+                msg = 'Movement = False, but data does not have rank 4.'
+                assert len(predicted_stacks.shape) == 4, msg
+
+                name = f'Stack {i}.'
+                sp = plt.subplot(nrows, ncols, i + 1)
+                sp.set_title(f'{name}')
+                plt.imshow(stacks[i])
+
+                p_name = f'Predicted stack {i}.'
+                sp = plt.subplot(nrows, ncols, i + 5)
+                sp.set_title(f'{p_name}')
+                plt.imshow(predicted_stacks[i])
+
+            plt.savefig(f'output/compare_{mode}_{dt_string}.png')
 
     def illustrate_history(self,
         history: Type[History]) -> None:
@@ -352,6 +566,11 @@ class Model():
             plt.xlabel('epoch')
             plt.legend(['train', 'test'], loc='upper left')
             plt.savefig(f'output/{key}_{dt_string}.png')
+
+    def _layer_shapes(self, model):
+        for l in model.layers:
+            print(l.output_shape)
+
 
     def broadcast(self,
         history: Type[History]) -> None:
