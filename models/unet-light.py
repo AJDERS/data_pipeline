@@ -2,11 +2,8 @@ import sys
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Input, Conv3D, Add, Conv2D
-from .unet3d import _down_block, _resnet_block, _activation, _up_block
+from .unet import _down_block, _resnet_block, _activation, _up_block
 from tensorflow.keras.models import Model
-
-
-
 
 def create_model(conf):
     target_size = conf['PREPROCESS_TRAIN'].getint('TargetSize')
@@ -23,21 +20,10 @@ def create_model(conf):
     shortcut = conf['MODEL'].getboolean('Shortcut')
     dropout_rate = conf['MODEL'].getfloat('DropOutRate')
     dropout_wrn = conf['MODEL'].getboolean('DropOutWarning')
-    temporal_down_scaling = conf['MODEL'].getboolean('TemporalDownScaling')
-    stacks = conf['DATA'].getboolean('Stacks')
-    tracks = conf['DATA'].getboolean('Tracks')
-    assert stacks != tracks, 'One and only one output format must be set.'
 
-    if temporal_down_scaling:
-        strides = 2
-    else:
-        strides = (2,2,2)
-
-
-    input_size = (target_size, target_size, duration, 1)
+    input_size = (target_size, target_size, 1)
 
     # target_size = ts
-    # duration = d
     # Input layer,
     #                           ts x ts x d x 1
     input_data = Input(shape=input_size)
@@ -48,7 +34,6 @@ def create_model(conf):
         input_data,
         num_filters=num_filters,
         activation=activation,
-        strides=strides,
         initializer=initializer,
         shortcut=shortcut,
         dropout_rate=dropout_rate,
@@ -86,26 +71,13 @@ def create_model(conf):
         batchnorm=batchnorm,
         name='up_block_1'
     )
-    if stacks:
-        output_data = Conv3D(
-            filters=1,
-            kernel_size=1,
-            padding=padding,
-            kernel_initializer=initializer,
-            name='output_layer'
-        )(d0)
-        output_data = _activation(output_data, output_activation)
 
-    if tracks:
-        d0 = tf.keras.layers.Add()(
-            [d0[:,:,:,f,:] for f in range(duration)]
-        )
-        output_data = Conv2D(
-            filters=1,
-            kernel_size=1,
-            padding=padding,
-            kernel_initializer=initializer,
-            name='output_layer'
-        )(d0)
-        output_data = _activation(output_data, output_activation)
+    output_data = Conv2D(
+        filters=1,
+        kernel_size=1,
+        padding=padding,
+        kernel_initializer=initializer,
+        name='output_layer'
+    )(d0)
+    output_data = _activation(output_data, output_activation)
     return Model(inputs=input_data, outputs=output_data)

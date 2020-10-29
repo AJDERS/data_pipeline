@@ -193,18 +193,17 @@ class FrameGenerator:
             else:
                 return finished_frame, None, scat_pos
         else:
-            finished_label = frame
-            scat_pos = []
             for _ in range(self.num_scatter):
-                temp_frame = frame
-                temp_label = frame
-                x = r.randint(0, self.target_size)
-                y = r.randint(0, self.target_size)
-                scat_pos.append((x, y))
-
+                temp_frame = np.zeros(frame.shape)
+                temp_label = np.zeros(frame.shape)
+                # If first time step, place randomly, else make movement.
+                
+                x = r.randint(0, self.target_size-1)
+                y = r.randint(0, self.target_size-1)
+                
                 # Place scatterer
-                temp_frame[x][y] = 1.0
-                temp_label[x][y] = 1.0
+                temp_frame[x,y] = 1.0
+                temp_label[x,y] = 1.0
 
                 # Convolve with gaussian map
                 temp_frame = convolve2d(
@@ -212,12 +211,6 @@ class FrameGenerator:
                     gaussian_map_data,
                     'same'
                 )
-                temp_label = convolve2d(
-                    temp_label,
-                    gaussian_map_label,
-                    'same'
-                )
-
                 # Normalize and transfor max to finished frame
                 finished_frame = self._normalize(
                     np.maximum(
@@ -225,13 +218,18 @@ class FrameGenerator:
                         temp_frame
                     )
                 )
+                temp_label = convolve2d(
+                    temp_label,
+                    gaussian_map_label,
+                    'same'
+                )
                 finished_label = self._normalize(
                     np.maximum(
                         finished_label,
                         temp_label
                     )
                 )
-            return finished_frame, finished_label, scat_pos
+            return finished_frame, finished_label, None
 
 
     def _gaussian_map(self, sigma: float, mu: float) -> np.ndarray:
@@ -364,7 +362,7 @@ class FrameGenerator:
         if self.tracks:
             tracks = self._make_tracks(scat_pos)
             loader.compress_and_save(
-                array=label,
+                array=tracks,
                 data_type='labels',
                 name=str(index).zfill(5),
                 type_of_data=mode,

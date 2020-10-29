@@ -39,6 +39,8 @@ class DataGenerator:
     """
     def __init__(self, X, Y, mode, config):
         self.config = config
+        self.stacks = self.config['DATA'].getboolean('Stacks')
+        self.tracks = self.config['DATA'].getboolean('Tracks')
         self.X = X
         self.Y = Y
         self.mode = mode
@@ -50,7 +52,10 @@ class DataGenerator:
         assert self.mode in ['training', 'validation', 'evaluation'], msg
         assert type(self.X) == np.ndarray, 'X must be np.ndarray.'
         assert type(self.Y) == np.ndarray, 'Y must be np.ndarray.'
-        assert self.X.shape == self.Y.shape, 'X and Y must have same shape.'
+        if self.stacks:
+            assert self.X.shape == self.Y.shape, 'X and Y must have same shape.'
+        if self.tracks:
+            assert self.X.shape[0] == self.Y.shape[0], 'X and Y must have same shape.'
 
     def _get_config(self):
         if self.mode == 'training':
@@ -109,16 +114,13 @@ class DataGenerator:
             np.random.shuffle(index)
 
         idx = 0
-        while True:
+        run = True
+        while run:
             # Preallocation
             batch_xs = np.zeros((self.batch_size, *self.X.shape[1:]))
             batch_ys = np.zeros((self.batch_size, *self.Y.shape[1:]))
             for batch_i in range(self.batch_size):
 
-                # Break if no more data.
-                if idx == self.X.shape[0]:
-                    break
-                
                 # Get data and label
                 current_data = self.X[index[idx]]
                 current_label = self.Y[index[idx]]
@@ -146,6 +148,10 @@ class DataGenerator:
                 batch_xs[batch_i] = current_data
                 batch_ys[batch_i] = current_label
             yield batch_xs, batch_ys
+            index = list(range(self.X.shape[0]))
+            if self.shuffle:
+                np.random.shuffle(index)
+            idx = 0
 
     def _add_noise(self, noise, tensor):
         return tensor
