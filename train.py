@@ -23,7 +23,7 @@ from tensorflow.keras.callbacks import History
 from tensorflow.python.keras import backend
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import Precision, Recall
-from matplotlib.animation import FuncAnimation, PillowWriter 
+from matplotlib.animation import FuncAnimation, PillowWriter
 
 
 now = datetime.now()
@@ -57,13 +57,14 @@ class Model():
         self.model = None
         self.loaded_model = False
         self.model_compiled = False
-        self.with_validation_gen = True
         self.predicted_data = False
         self.fitted = False
         self.train_X = None
         self.train_Y = None
         self.valid_X = None
         self.valid_Y = None
+        self.eval_X = None
+        self.eval_Y = None
         self.train_generator = None
         self.valid_generator = None
         self._reset_seeds()
@@ -103,11 +104,38 @@ class Model():
         valid_data_dirs = [os.path.join(valid_data,fname) for
             fname in valid_data_names]
 
-        # # Directory with our evaluation data arrays
-        # eval_data = os.path.join(self.eval_path, 'data')
-        # eval_data_names = os.listdir(eval_data)
+        # Directory with our testing data arrays
+        eval_data = os.path.join(self.eval_path, 'data')
+        eval_data_names = os.listdir(eval_data)
+        eval_data_dirs = [os.path.join(eval_data,fname) for
+            fname in eval_data_names]
 
-        return train_data_dirs, valid_data_dirs
+        # Directory with our training label arrays
+        train_label = os.path.join(self.train_path, 'labels')
+        train_label_names = os.listdir(train_label)
+        train_label_dirs = [os.path.join(train_label,fname) for
+            fname in train_label_names]
+
+        # Directory with our testing data arrays
+        valid_label = os.path.join(self.valid_path, 'labels')
+        valid_label_names = os.listdir(valid_label)
+        valid_label_dirs = [os.path.join(valid_label,fname) for
+            fname in valid_label_names]
+
+        # Directory with our testing data arrays
+        eval_label = os.path.join(self.eval_path, 'labels')
+        eval_label_names = os.listdir(eval_label)
+        eval_label_dirs = [os.path.join(eval_label,fname) for
+            fname in eval_label_names]
+
+        return [
+            train_data_dirs,
+            valid_data_dirs,
+            eval_data_dirs,
+            train_label_dirs,
+            valid_label_dirs,
+            eval_label_dirs
+        ]
 
     def generator(self,
         mode: str,
@@ -155,7 +183,13 @@ class Model():
         except FileNotFoundError:
             return FileNotFoundError
 
-    def print_img(self) -> None:
+    def _load_from_checkpoint(self, checkpoint_path: str) -> None:
+        latest = tf.train.latest_checkpoint('output/checkpoints')
+        self.build_model()
+        self.fitted = True
+        self.model.load_weights(latest)
+
+    def print_img(self, mode: str) -> None:
         """
         **Saves a plot of 8 examples of input data.**
 
@@ -164,22 +198,42 @@ class Model():
         where ``dt_string`` is the current data and hour in the format:
         ``{ddmmyyyy-hh}``.
         """
-        nrows = 2
+        [
+            train_data_dirs,
+            valid_data_dirs,
+            eval_data_dirs,
+            train_label_dirs,
+            valid_label_dirs,
+            eval_label_dirs
+        ] = self._get_data_dirs()
+        if mode == 'training':
+            dirs = train_data_dirs
+            l_dirs = train_label_dirs
+        elif mode == 'validation':
+            dirs = valid_data_dirs
+            l_dirs = valid_label_dirs
+        elif mode == 'evaluation':
+            dirs = eval_data_dirs
+            l_dirs = eval_label_dirs
+
+        nrows = 4
         ncols = 4
         fig = plt.gcf()
         fig.set_size_inches(ncols * 4, nrows * 4)
-        train_data_dirs, _ = self._get_data_dirs()
-        pic_index = random.randint(0, len(train_data_dirs))
+        fig.patch.set_facecolor('white')
+        
+        pic_index = random.randint(0, len(dirs))
         if pic_index < 8:
             pic_index = 0
-        if pic_index > len(train_data_dirs) - 8:
-            pic_index = len(train_data_dirs) - 8
-        next_train_pix = train_data_dirs[pic_index-8:pic_index]
+        if pic_index > len(dirs) - 8:
+            pic_index = len(dirs) - 8
+        next_pix = dirs[pic_index-8:pic_index] + l_dirs[pic_index-8:pic_index]
+
 
         if self.config['DATA'].getboolean('Movement'):
             # Generates frames.
-            def _update(next_train_pix, index):
-                for i, img_path in enumerate(next_train_pix):
+            def _update(next_pix, index):
+                for i, img_path in enumerate(next_pix):
                     # Set up subplot; subplot indices start at 1
                     name = '/'.join(img_path.split('/')[-2:])
                     sp = plt.subplot(nrows, ncols, i + 1)
@@ -193,14 +247,14 @@ class Model():
             duration = self.config['DATA'].getint('MovementDuration')
             ani = FuncAnimation(
                 fig,
-                lambda i: _update(next_train_pix, i),
+                lambda i: _update(next_pix, i),
                 list(range(duration)),
-                init_func=_update(next_train_pix, 0)
+                init_func=_update(next_pix, 0)
             )  
             writer = PillowWriter(fps=duration)  
-            ani.save(f"output/examples_{dt_string}.gif", writer=writer) 
+            ani.save(f"output/examples_{mode}_{dt_string}.gif", writer=writer) 
         else:
-            for i, img_path in enumerate(next_train_pix):
+            for i, img_path in enumerate(next_pix):
                 # Set up subplot; subplot indices start at 1
                 name = '/'.join(img_path.split('/')[-2:])
                 sp = plt.subplot(nrows, ncols, i + 1)
@@ -209,7 +263,7 @@ class Model():
                 msg = 'Movement = False, but data does not have rank 2.'
                 assert len(array.shape) == 2, msg
                 plt.imshow(array)
-            plt.savefig(f'output/examples_{dt_string}.png')
+            plt.savefig(f'output/examples_{mode}_{dt_string}.png')
 
     def build_model(self) -> None:
         """
@@ -239,7 +293,8 @@ class Model():
             self.model.compile(
                 loss='mean_squared_error',
                 optimizer=Adam(lr=0.001),
-                metrics=['mean_squared_error']
+                metrics=['mean_squared_error'],
+                run_eagerly=True
             )
             self.model_compiled = True
         else:
@@ -344,7 +399,7 @@ class Model():
         loaded in memory, or from
         """
         checkpoint = self._checkpoints()
-        if not self.with_validation_gen:
+        if not self.config['TRAINING'].getboolean('WithValidationGenerator'):
             print('Fitting model without validation generator... \n')
             if self.config['TRAINING'].getboolean('InMemory'):
                 print('Fitting model with data in memory... \n')
@@ -383,7 +438,7 @@ class Model():
                     epochs=self.config['TRAINING'].getint('Epochs'),
                     verbose=1,
                     validation_data=(self.valid_X, self.valid_Y),
-                    validation_steps=steps_per_epoch, # Note only uses half of validation data in each epoch
+                    validation_steps=steps_per_epoch, 
                     callbacks=[self.callback, checkpoint]
                 )
             else:
@@ -394,7 +449,7 @@ class Model():
                     epochs=self.config['TRAINING'].getint('Epochs'),
                     verbose=1,
                     validation_data=self.valid_generator,
-                    validation_steps=steps_per_epoch*2, # Note only uses half of validation data in each epoch
+                    validation_steps=steps_per_epoch, 
                     callbacks=[self.callback, checkpoint]
                 )
             self.fitted = True
@@ -403,27 +458,47 @@ class Model():
             backend.clear_session()
             return history
 
-    def predict(self) -> list:
+    def predict(self, mode: str) -> list:
         assert self.fitted, 'Model is not fitted.'
         self.predicted_data = True
-        self.eval_X = self.loader.load_array_folder(
-            source_path = os.path.join(self.eval_path,'data'),
-            type_of_data = 'data'
-        )
+        if mode == 'training':
+            if self.train_X is not None:
+                data = self.train_X
+            else:
+                data = self.loader.load_array_folder(
+                    source_path = os.path.join(self.train_path,'data'),
+                    type_of_data = 'data'
+                )
+        elif mode == 'validation':
+            if self.valid_X is not None:
+                data = self.valid_X
+            else:
+                data = self.loader.load_array_folder(
+                    source_path = os.path.join(self.valid_path,'data'),
+                    type_of_data = 'data'
+                )
+        elif mode == 'evaluation':
+            if self.eval_X is not None:
+                data = self.eval_X
+            else:
+                data = self.loader.load_array_folder(
+                    source_path = os.path.join(self.eval_path,'data'),
+                    type_of_data = 'data'
+                )
         batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
-        batch = self.eval_X[0:batch_size]
+        batch = data[0:batch_size]
         predicted_batch = self.model.predict(batch)
         return batch, predicted_batch
 
-    def compare_predict(self) -> None:
+    def compare_predict(self, mode: str) -> None:
         # Generates frames.
-        batch, predicted_batch = self.predict()
+        batch, predicted_batch = self.predict(mode)
         nrows = 2
         ncols = 4
         fig = plt.gcf()
         fig.set_size_inches(ncols * 4, nrows * 4)
+        fig.patch.set_facecolor('white')
         predicted_stacks = predicted_batch[0:4]
-        print(predicted_stacks.shape)
         stacks = batch[0:4]
 
         if self.config['DATA'].getboolean('Movement'):   
@@ -450,7 +525,7 @@ class Model():
                 init_func=_update(predicted_stacks, stacks, 0)
             )  
             writer = PillowWriter(fps=duration)  
-            ani.save(f"output/compare_{dt_string}.gif", writer=writer) 
+            ani.save(f"output/compare_{mode}_{dt_string}.gif", writer=writer) 
         else:
             for i in range(len(predicted_stacks)):
                 msg = 'Movement = False, but data does not have rank 4.'
@@ -466,7 +541,7 @@ class Model():
                 sp.set_title(f'{p_name}')
                 plt.imshow(predicted_stacks[i])
 
-            plt.savefig(f'output/compare_{dt_string}.png')
+            plt.savefig(f'output/compare_{mode}_{dt_string}.png')
 
     def illustrate_history(self,
         history: Type[History]) -> None:
