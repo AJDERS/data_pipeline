@@ -436,8 +436,4 @@ def create_model(conf):
             name='output_layer'
         )(d2)
         output_data = _activation(output_data, output_activation)
-    
-
-
-
     return Model(inputs=input_data, outputs=output_data)
