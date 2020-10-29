@@ -122,15 +122,15 @@ class FrameGenerator:
         .. warning:: If a scatterer leaves the frame its coordinates will be
             set to ``np.nan`` from that timestep and beyond. 
         """
-        finished_frame = frame
+        finished_frame = frame.copy()
         if self.stacks:
-            finished_label = frame
+            finished_label = frame.copy()
 
         if self.tracks:
             scat_pos = []
 
         if self.movement:
-            for _ in range(self.num_scatter):
+            for k in range(self.num_scatter):
                 scat_pos_timeseries = []
                 for t in range(self.duration):
                     temp_frame = np.zeros(frame[:,:,t].shape)
@@ -184,6 +184,11 @@ class FrameGenerator:
                             )
                         )
                     scat_pos_timeseries.append((x, y, t))
+#                    import matplotlib.pyplot as plt
+#                    plt.imshow(temp_frame)
+#                    plt.savefig(f'output/test_img/frame_{k}_{t}.png')
+#                    plt.imshow(temp_label)
+#                    plt.savefig(f'output/test_img/label_{k}_{t}.png')
                 if self.tracks:
                     scat_pos.append(scat_pos_timeseries)
             if all([self.stacks, self.tracks]):
