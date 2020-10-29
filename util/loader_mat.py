@@ -58,7 +58,7 @@ class Loader():
 
         assert type_of_data in ['data', 'labels']
         folder = os.path.join(source_path)
-        file_names = os.listdir(folder)
+        file_names = sorted(os.listdir(folder))
 
         loaded_arrays = []
         print(f'Loading {type_of_data} from storage... \n')
