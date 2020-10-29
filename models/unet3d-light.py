@@ -23,9 +23,15 @@ def create_model(conf):
     shortcut = conf['MODEL'].getboolean('Shortcut')
     dropout_rate = conf['MODEL'].getfloat('DropOutRate')
     dropout_wrn = conf['MODEL'].getboolean('DropOutWarning')
+    temporal_down_scaling = conf['MODEL'].getboolean('TemporalDownScaling')
     stacks = conf['DATA'].getboolean('Stacks')
     tracks = conf['DATA'].getboolean('Tracks')
     assert stacks != tracks, 'One and only one output format must be set.'
+
+    if temporal_down_scaling:
+        strides = 2
+    else:
+        strides = (2,2,2)
 
 
     input_size = (target_size, target_size, duration, 1)
@@ -42,7 +48,7 @@ def create_model(conf):
         input_data,
         num_filters=num_filters,
         activation=activation,
-        strides=2,
+        strides=strides,
         initializer=initializer,
         shortcut=shortcut,
         dropout_rate=dropout_rate,
