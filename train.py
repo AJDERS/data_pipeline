@@ -462,6 +462,7 @@ class Model():
     def predict(self, mode: str) -> list:
         assert self.fitted, 'Model is not fitted.'
         self.predicted_data = True
+
         if mode == 'training':
             if self.train_X is not None:
                 data = self.train_X
@@ -470,6 +471,10 @@ class Model():
                     source_path = os.path.join(self.train_path,'data'),
                     type_of_data = 'data'
                 )
+            scat_pos = self.loader.load_array_folder(
+                source_path = os.path.join(self.train_path,'scatterer_positions'),
+                type_of_data = 'data'
+            )
         elif mode == 'validation':
             if self.valid_X is not None:
                 data = self.valid_X
@@ -478,6 +483,10 @@ class Model():
                     source_path = os.path.join(self.valid_path,'data'),
                     type_of_data = 'data'
                 )
+            scat_pos = self.loader.load_array_folder(
+                source_path = os.path.join(self.valid_path,'scatterer_positions'),
+                type_of_data = 'scatterer_positions'
+            )
         elif mode == 'evaluation':
             if self.eval_X is not None:
                 data = self.eval_X
@@ -486,14 +495,19 @@ class Model():
                     source_path = os.path.join(self.eval_path,'data'),
                     type_of_data = 'data'
                 )
+            scat_pos = self.loader.load_array_folder(
+                source_path = os.path.join(self.eval_path,'scatterer_positions'),
+                type_of_data = 'scatterer_positions'
+            )
         batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
         batch = data[0:batch_size]
+        scat_pos_batch = scat_pos[0:batch_size]
         predicted_batch = self.model.predict(batch)
-        return batch, predicted_batch
+        return batch, predicted_batch, scat_pos_batch
 
     def compare_predict(self, mode: str) -> None:
         # Generates frames.
-        batch, predicted_batch = self.predict(mode)
+        batch, predicted_batch, scat_pos_batch = self.predict(mode)
         nrows = 2
         ncols = 4
         fig = plt.gcf()
