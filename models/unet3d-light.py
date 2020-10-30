@@ -30,8 +30,10 @@ def create_model(conf):
 
     if temporal_down_scaling:
         strides = 2
+        scale = 2
     else:
-        strides = (2,2,2)
+        strides = (2,2,1)
+        scale = (2,2,1)
 
 
     input_size = (target_size, target_size, duration, 1)
@@ -83,6 +85,7 @@ def create_model(conf):
         dropout_rate=dropout_rate,
         dropout_wrn=dropout_wrn,
         up_sampling=up_sampling,
+        scale=scale,
         batchnorm=batchnorm,
         name='up_block_1'
     )
