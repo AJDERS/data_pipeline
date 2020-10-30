@@ -240,9 +240,10 @@ class Model():
                     sp.set_title(f'{name}')
                     array = self.loader.decompress_load(img_path)
 
-                    msg = 'Movement = True, but data does not have rank 3.'
-                    assert len(array.shape) == 3, msg
-                    plt.imshow(array[:,:,index])
+                    if len(array.shape) != 3:
+                        plt.imshow(array)
+                    else:
+                        plt.imshow(array[:,:,index])
 
             duration = self.config['DATA'].getint('MovementDuration')
             ani = FuncAnimation(
@@ -504,18 +505,21 @@ class Model():
         if self.config['DATA'].getboolean('Movement'):   
             def _update(predicted_stacks, stacks, index):
                 for i in range(len(predicted_stacks)):
-                    msg = 'Movement = True, but data does not have rank 5.'
-                    assert len(predicted_stacks.shape) == 5, msg
-
                     name = f'Stack {i}.'
                     sp = plt.subplot(nrows, ncols, i + 1)
                     sp.set_title(f'{name}')
-                    plt.imshow(stacks[i,:,:,index])
+                    if len(stacks.shape) != 5:
+                        plt.imshow(stacks[i,:,:])
+                    else:
+                        plt.imshow(stacks[i,:,:,index])
 
                     p_name = f'Predicted stack {i}.'
                     sp = plt.subplot(nrows, ncols, i + 5)
                     sp.set_title(f'{p_name}')
-                    plt.imshow(predicted_stacks[i,:,:,index])
+                    if len(predicted_stacks.shape) != 5:
+                        plt.imshow(predicted_stacks[i,:,:])
+                    else:
+                        plt.imshow(predicted_stacks[i,:,:,index])
 
             duration = self.config['DATA'].getint('MovementDuration')
             ani = FuncAnimation(
