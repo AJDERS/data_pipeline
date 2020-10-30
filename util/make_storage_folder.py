@@ -22,6 +22,7 @@ def make_storage_folder(container_dir: str = '', name: str = '') -> None:
             os.mkdir(di)
             os.mkdir(os.path.join(di, 'data'))
             os.mkdir(os.path.join(di, 'labels'))
+            os.mkdir(os.path.join(di, 'scatterer_positions'))
         except FileExistsError:
             pass
     return container_dir
