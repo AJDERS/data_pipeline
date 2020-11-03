@@ -77,7 +77,7 @@ def create_model(conf):
     #                           ts/2 x ts/2 x 128 > ts x ts x 64
     d0 = _up_block(
         conv0, ### e2???
-        num_filters=num_filters*2, # 4
+        num_filters=num_filters, # 4
         activation=activation,
         initializer=initializer,
         conv_1d_later=conv_1d_later,
