@@ -32,9 +32,11 @@ class FrameGenerator:
         self.target_size = self.config['DATA'].getint('TargetSize')
         self.num_scatter = self.config['DATA'].getint('NumScatter')
         self.movement = self.config['DATA'].getboolean('Movement')
-        self.velocity = self.config['DATA'].getint('MovementVelocity')
+        velocity_tmp = self.config['DATA'].get('MovementVelocityRange')
+        self.velocity = [int(y) for y in velocity_tmp.split(',')]
+        angle_tmp = self.config['DATA'].get('MovementAngleRange')
+        self.angle = [int(y) * (np.pi / 180.0) for y in angle_tmp.split(',')]
         self.duration = self.config['DATA'].getint('MovementDuration')
-        self.angle = self.config['DATA'].getint('MovementAngle') * (np.pi / 180.0)
         self.stacks = self.config['DATA'].getboolean('Stacks')
         self.tracks = self.config['DATA'].getboolean('Tracks')
         msg = 'One and only one output format must be set.'
@@ -70,8 +72,9 @@ class FrameGenerator:
         self,
         previous_x: int,
         previous_y: int,
-        angle: float,
-        velocity: int) -> tuple:
+        angle_range: float,
+        velocity_range: int,
+        track_generation: bool) -> tuple:
         """
         **Simple helper function calculating next position in time.**
 
@@ -85,6 +88,13 @@ class FrameGenerator:
         :returns: x,y - which are the new coordinates of the scatterer.
         :rtype: ``tuple``
         """
+        if track_generation:
+            velocity = velocity_range
+            angle = angle_range
+        else:
+            velocity = r.randint(velocity_range[0], velocity_range[1])
+            angle = r.uniform(angle_range[0], angle_range[1])
+        
         x = int(previous_x + np.cos(angle) * velocity)
         y = int(previous_y + np.sin(angle) * velocity)
         return x, y
@@ -144,7 +154,8 @@ class FrameGenerator:
                             previous_x,
                             previous_y,
                             self.angle,
-                            self.velocity
+                            self.velocity,
+                            False
                         )
 
                     # Place scatterer if in frame
@@ -307,7 +318,8 @@ class FrameGenerator:
                         first[0],
                         first[1],
                         movement_angle,
-                        velocity
+                        velocity,
+                        True
                     )
                     if self._in_frame((x,y)):
                         frame[x, y] += 1.0
