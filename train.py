@@ -191,7 +191,7 @@ class Model():
             return FileNotFoundError
 
     def _load_from_checkpoint(self, checkpoint_path: str) -> None:
-        latest = tf.train.latest_checkpoint('output/checkpoints')
+        latest = tf.train.latest_checkpoint(checkpoint_path)
         self.build_model()
         self.fitted = True
         self.model.load_weights(latest)
