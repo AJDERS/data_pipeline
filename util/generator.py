@@ -62,7 +62,7 @@ class DataGenerator:
             self.preprocess = self.config['PREPROCESS_TRAIN']
             self.batch_size = self.preprocess.getint('BatchSize')
             self.shuffle = self.preprocess.getboolean('Shuffle')
-            self.noise = self.preprocess.getint('NoiseDB')
+            self.noise = self.preprocess.getfloat('NoiseDB')
             self.rotation = self.preprocess.getint('RotationRange')
             self.out_of_plane = self.preprocess.get('OutOfPlaneScat')
             if self.out_of_plane == 'None':
@@ -75,7 +75,7 @@ class DataGenerator:
             self.preprocess = self.config['PREPROCESS_VALID']
             self.batch_size = self.preprocess.getint('BatchSize')
             self.shuffle = self.preprocess.getboolean('Shuffle')
-            self.noise = self.preprocess.getint('NoiseDB')
+            self.noise = self.preprocess.getfloat('NoiseDB')
             self.rotation = self.preprocess.getint('RotationRange')
             self.out_of_plane = self.preprocess.get('OutOfPlaneScat')
             if self.out_of_plane == 'None':
@@ -88,7 +88,7 @@ class DataGenerator:
             self.preprocess = self.config['PREPROCESS_EVAL']
             self.batch_size = self.preprocess.getint('BatchSize')
             self.shuffle = self.preprocess.getboolean('Shuffle')
-            self.noise = self.preprocess.getint('NoiseDB')
+            self.noise = self.preprocess.getfloat('NoiseDB')
             self.rotation = self.preprocess.getint('RotationRange')
             self.out_of_plane = self.preprocess.get('OutOfPlaneScat')
             if self.out_of_plane == 'None':
@@ -154,6 +154,8 @@ class DataGenerator:
             idx = 0
 
     def _add_noise(self, noise, tensor):
+        noise = np.random.normal(0, noise, tensor.shape)
+        tensor = tensor + noise
         return tensor
 
     def _remove_scatterer_from_frame(self, tensor):
