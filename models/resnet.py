@@ -24,7 +24,6 @@ def create_model(conf):
     dropout_rate = conf['MODEL'].getfloat('DropOutRate')
     dropout_wrn = conf['MODEL'].getboolean('DropOutWarning')
     temporal_down_scaling = conf['MODEL'].getboolean('TemporalDownScaling')
-    temporal_conv = conf['MODEL'].getboolean('TemporalConvolution')
     stacks = conf['DATA'].getboolean('Stacks')
     tracks = conf['DATA'].getboolean('Tracks')
     assert stacks != tracks, 'One and only one output format must be set.'
@@ -36,10 +35,6 @@ def create_model(conf):
         strides = (2,2,1)
         scale = (2,2,1)
 
-    if temporal_conv:
-        kernel_size = 3
-    else:
-        kernel_size = (3,3,1)
 
     input_size = (target_size, target_size, duration, 1)
 
@@ -54,7 +49,6 @@ def create_model(conf):
     e0, _ = _down_block(
         input_data,
         num_filters=num_filters,
-        kernel_size=kernel_size,
         activation=activation,
         strides=strides,
         initializer=initializer,
@@ -71,7 +65,6 @@ def create_model(conf):
     conv0 = _resnet_block(
         e0,
         num_filters=num_filters*2, # 8
-        kernel_size=kernel_size,
         activation=activation,
         initializer=initializer,
         dropout_rate=dropout_rate,
@@ -85,7 +78,6 @@ def create_model(conf):
     d0 = _up_block(
         conv0, ### e2???
         num_filters=num_filters, # 4
-        kernel_size=kernel_size,
         activation=activation,
         initializer=initializer,
         conv_1d_later=conv_1d_later,

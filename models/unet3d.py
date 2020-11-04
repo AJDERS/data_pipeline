@@ -29,7 +29,7 @@ def _activation(tensor, activation='lrelu', name=''):
 def _resnet_block(
     tensor,
     num_filters,
-    kernel_size=3,
+    kernel_size=(3,3,3),
     padding='same',
     activation='lrelu',
     initializer='glorot_uniform',
@@ -94,7 +94,7 @@ def _resnet_block(
 def _down_block(
     tensor,
     num_filters,
-    kernel_size=3,
+    kernel_size=(3,3,3),
     padding='same',
     strides=2,
     shortcut=True,
@@ -165,7 +165,7 @@ def _down_block(
 def _up_block(
     tensor,
     num_filters,
-    kernel_size=3,
+    kernel_size=(3,3,3),
     padding='same',
     up_sampling='simple',
     scale=(2, 2, 2),
@@ -278,6 +278,7 @@ def create_model(conf):
     skip_connection = conf['MODEL'].get('SkipConnection')
     dropout_encoder_only = conf['MODEL'].getboolean('DropOutEncoderOnly')
     temporal_down_scaling = conf['MODEL'].getboolean('TemporalDownScaling')
+    temporal_conv = conf['MODEL'].getboolean('TemporalConvolution')
     stacks = conf['DATA'].getboolean('Stacks')
     tracks = conf['DATA'].getboolean('Tracks')
     assert stacks != tracks, 'One and only one output format must be set.'
@@ -288,6 +289,11 @@ def create_model(conf):
     else:
         strides = (2,2,1)
         scale = (2,2,1)
+
+    if temporal_conv:
+        kernel_size = 3
+    else:
+        kernel_size = (3,3,1)
 
     input_size = (target_size, target_size, duration, 1)
 
@@ -301,6 +307,7 @@ def create_model(conf):
     #                           ts x ts x 1 > ts/2 x ts/2 x 64
     e0, s0 = _down_block(
         input_data,
+        kernel_size=kernel_size,
         num_filters=num_filters,
         activation=activation,
         strides=strides,
@@ -319,6 +326,7 @@ def create_model(conf):
     e1, s1 = _down_block(
         e0,
         num_filters=num_filters*2,
+        kernel_size=kernel_size,
         activation=activation,
         strides=strides,
         initializer=initializer,
@@ -335,6 +343,7 @@ def create_model(conf):
     e2, s2 = _down_block(
         e1,
         num_filters=num_filters*4,
+        kernel_size=kernel_size,
         activation=activation,
         strides=strides,
         initializer=initializer,
@@ -354,6 +363,7 @@ def create_model(conf):
     conv0 = _resnet_block(
         e2,
         num_filters=num_filters*8, # 8
+        kernel_size=kernel_size,
         activation=activation,
         initializer=initializer,
         dropout_rate=dropout_rate,
@@ -367,6 +377,7 @@ def create_model(conf):
     d0 = _up_block(
         conv0, ### e2???
         num_filters=num_filters*4, # 4
+        kernel_size=kernel_size,
         activation=activation,
         initializer=initializer,
         conv_1d_later=conv_1d_later,
@@ -389,6 +400,7 @@ def create_model(conf):
     d1 = _up_block(
         d0,
         num_filters=num_filters*2, # 2
+        kernel_size=kernel_size,
         activation=activation,
         initializer=initializer,
         conv_1d_later=conv_1d_later,
@@ -411,6 +423,7 @@ def create_model(conf):
     d2 = _up_block(
         d1,
         num_filters=num_filters, # 1
+        kernel_size=kernel_size,
         activation=activation,
         initializer=initializer,
         conv_1d_later=conv_1d_later,
