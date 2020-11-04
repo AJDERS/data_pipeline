@@ -19,19 +19,13 @@ from datetime import datetime
 from util.callback import Callback
 from util.loader_mat import Loader
 from util.generator import DataGenerator
+from util import clean_storage_folder as cleaner 
 from tensorflow.keras.callbacks import History
 from tensorflow.python.keras import backend
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.metrics import Precision, Recall
+from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 from matplotlib.animation import FuncAnimation, PillowWriter
-
-
-now = datetime.now()
-dt_string = now.strftime("%d%m%Y_%H")
-logging.basicConfig(
-            filename=f'output/model_{dt_string}.log',
-            level=logging.INFO
-        )
 
 class Model():
     """
@@ -68,6 +62,7 @@ class Model():
         self.train_generator = None
         self.valid_generator = None
         self._reset_seeds()
+        self._make_logs()
 
     def _reset_seeds(self):
         seed = self.config['PIPELINE'].getint('Seed')
@@ -79,6 +74,18 @@ class Model():
         random.seed(seed)
         tf.compat.v1.set_random_seed(seed)
         print("RANDOM SEEDS RESET")
+
+    def _clean_log_dir(self):
+        cleaner.clean_logs('output/logs')
+
+    def _make_logs(self):
+        self._clean_log_dir()
+        now = datetime.now()
+        self.dt_string = now.strftime("%Y%m%d-%H%M%S")
+        logging.basicConfig(
+                    filename=f'output/logs/model_{self.dt_string}.log',
+                    level=logging.INFO
+        )
 
     def _get_data_dirs(self) -> tuple:
         """
@@ -240,9 +247,10 @@ class Model():
                     sp.set_title(f'{name}')
                     array = self.loader.decompress_load(img_path)
 
-                    msg = 'Movement = True, but data does not have rank 3.'
-                    assert len(array.shape) == 3, msg
-                    plt.imshow(array[:,:,index])
+                    if len(array.shape) != 3:
+                        plt.imshow(array)
+                    else:
+                        plt.imshow(array[:,:,index])
 
             duration = self.config['DATA'].getint('MovementDuration')
             ani = FuncAnimation(
@@ -252,7 +260,7 @@ class Model():
                 init_func=_update(next_pix, 0)
             )  
             writer = PillowWriter(fps=duration)  
-            ani.save(f"output/examples_{mode}_{dt_string}.gif", writer=writer) 
+            ani.save(f"output/examples_{mode}_{self.dt_string}.gif", writer=writer) 
         else:
             for i, img_path in enumerate(next_pix):
                 # Set up subplot; subplot indices start at 1
@@ -263,7 +271,7 @@ class Model():
                 msg = 'Movement = False, but data does not have rank 2.'
                 assert len(array.shape) == 2, msg
                 plt.imshow(array)
-            plt.savefig(f'output/examples_{mode}_{dt_string}.png')
+            plt.savefig(f'output/examples_{mode}_{self.dt_string}.png')
 
     def build_model(self) -> None:
         """
@@ -382,14 +390,25 @@ class Model():
 
     def _checkpoints(self):
         checkpoint_path = "./output/checkpoints/cp-{epoch:04d}.ckpt"
-
+        log_dir = f'./output/logs/model_tf_{self.dt_string}'
         cp_callback = tf.keras.callbacks.ModelCheckpoint(
            checkpoint_path,
            verbose=1,
            save_weights_only=True,
            save_best_only=True
         )
-        return cp_callback
+        patience = self.config['TRAINING'].getint('Patience')
+        early_stopping = EarlyStopping(
+            monitor='val_loss',
+            mode='min',
+            verbose=1,
+            patience=patience)
+        tensorboard_callback = TensorBoard(
+            log_dir=log_dir,
+            histogram_freq=1
+        )
+
+        return cp_callback, early_stopping, tensorboard_callback
 
     def _fit(self, batch_size: int, steps_per_epoch: int) -> Type[History]:
         """
@@ -398,7 +417,7 @@ class Model():
         Fits the predefined model with the given parameters, either with data
         loaded in memory, or from
         """
-        checkpoint = self._checkpoints()
+        checkpoint, early_stopping, tensorboard_callback = self._checkpoints()
         if not self.config['TRAINING'].getboolean('WithValidationGenerator'):
             print('Fitting model without validation generator... \n')
             if self.config['TRAINING'].getboolean('InMemory'):
@@ -410,7 +429,13 @@ class Model():
                     steps_per_epoch=steps_per_epoch,  
                     epochs=self.config['TRAINING'].getint('Epochs'),
                     verbose=1,
-                    callbacks=[self.callback, checkpoint]
+                    callbacks=
+                        [
+                        self.callback,
+                        checkpoint,
+                        early_stopping,
+                        tensorboard_callback
+                        ]
                 )
             else:
                 print('Fitting model with data from generator... \n')
@@ -420,11 +445,17 @@ class Model():
                     steps_per_epoch=steps_per_epoch,  
                     epochs=self.config['TRAINING'].getint('Epochs'),
                     verbose=1,
-                    callbacks=[self.callback, checkpoint]
+                    callbacks=
+                        [
+                        self.callback,
+                        checkpoint,
+                        early_stopping,
+                        tensorboard_callback
+                        ]
                 )
             self.fitted = True
             self.broadcast(history)
-            self.model.save(f'model_{dt_string}')
+            self.model.save(f'model_{self.dt_string}')
             backend.clear_session()
             return history
         else:
@@ -439,7 +470,13 @@ class Model():
                     verbose=1,
                     validation_data=(self.valid_X, self.valid_Y),
                     validation_steps=steps_per_epoch, 
-                    callbacks=[self.callback, checkpoint]
+                    callbacks=
+                        [
+                        self.callback,
+                        checkpoint,
+                        early_stopping,
+                        tensorboard_callback
+                        ]
                 )
             else:
                 print('Fitting model with data from generator... \n')
@@ -450,17 +487,24 @@ class Model():
                     verbose=1,
                     validation_data=self.valid_generator,
                     validation_steps=steps_per_epoch, 
-                    callbacks=[self.callback, checkpoint]
+                    callbacks=
+                        [
+                        self.callback,
+                        checkpoint,
+                        early_stopping,
+                        tensorboard_callback
+                        ]
                 )
             self.fitted = True
             self.broadcast(history)
-            self.model.save(f'model_{dt_string}')
+            self.model.save(f'model_{self.dt_string}')
             backend.clear_session()
             return history
 
     def predict(self, mode: str) -> list:
         assert self.fitted, 'Model is not fitted.'
         self.predicted_data = True
+
         if mode == 'training':
             if self.train_X is not None:
                 data = self.train_X
@@ -469,6 +513,10 @@ class Model():
                     source_path = os.path.join(self.train_path,'data'),
                     type_of_data = 'data'
                 )
+            scat_pos = self.loader.load_array_folder(
+                source_path = os.path.join(self.train_path,'scatterer_positions'),
+                type_of_data = 'data'
+            )
         elif mode == 'validation':
             if self.valid_X is not None:
                 data = self.valid_X
@@ -477,6 +525,10 @@ class Model():
                     source_path = os.path.join(self.valid_path,'data'),
                     type_of_data = 'data'
                 )
+            scat_pos = self.loader.load_array_folder(
+                source_path = os.path.join(self.valid_path,'scatterer_positions'),
+                type_of_data = 'scatterer_positions'
+            )
         elif mode == 'evaluation':
             if self.eval_X is not None:
                 data = self.eval_X
@@ -485,14 +537,19 @@ class Model():
                     source_path = os.path.join(self.eval_path,'data'),
                     type_of_data = 'data'
                 )
+            scat_pos = self.loader.load_array_folder(
+                source_path = os.path.join(self.eval_path,'scatterer_positions'),
+                type_of_data = 'scatterer_positions'
+            )
         batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
         batch = data[0:batch_size]
+        scat_pos_batch = scat_pos[0:batch_size]
         predicted_batch = self.model.predict(batch)
-        return batch, predicted_batch
+        return batch, predicted_batch, scat_pos_batch
 
     def compare_predict(self, mode: str) -> None:
         # Generates frames.
-        batch, predicted_batch = self.predict(mode)
+        batch, predicted_batch, scat_pos_batch = self.predict(mode)
         nrows = 2
         ncols = 4
         fig = plt.gcf()
@@ -504,18 +561,21 @@ class Model():
         if self.config['DATA'].getboolean('Movement'):   
             def _update(predicted_stacks, stacks, index):
                 for i in range(len(predicted_stacks)):
-                    msg = 'Movement = True, but data does not have rank 5.'
-                    assert len(predicted_stacks.shape) == 5, msg
-
                     name = f'Stack {i}.'
                     sp = plt.subplot(nrows, ncols, i + 1)
                     sp.set_title(f'{name}')
-                    plt.imshow(stacks[i,:,:,index])
+                    if len(stacks.shape) != 5:
+                        plt.imshow(stacks[i,:,:])
+                    else:
+                        plt.imshow(stacks[i,:,:,index])
 
                     p_name = f'Predicted stack {i}.'
                     sp = plt.subplot(nrows, ncols, i + 5)
                     sp.set_title(f'{p_name}')
-                    plt.imshow(predicted_stacks[i,:,:,index])
+                    if len(predicted_stacks.shape) != 5:
+                        plt.imshow(predicted_stacks[i,:,:])
+                    else:
+                        plt.imshow(predicted_stacks[i,:,:,index])
 
             duration = self.config['DATA'].getint('MovementDuration')
             ani = FuncAnimation(
@@ -525,7 +585,7 @@ class Model():
                 init_func=_update(predicted_stacks, stacks, 0)
             )  
             writer = PillowWriter(fps=duration)  
-            ani.save(f"output/compare_{mode}_{dt_string}.gif", writer=writer) 
+            ani.save(f"output/compare_{mode}_{self.dt_string}.gif", writer=writer) 
         else:
             for i in range(len(predicted_stacks)):
                 msg = 'Movement = False, but data does not have rank 4.'
@@ -541,7 +601,7 @@ class Model():
                 sp.set_title(f'{p_name}')
                 plt.imshow(predicted_stacks[i])
 
-            plt.savefig(f'output/compare_{mode}_{dt_string}.png')
+            plt.savefig(f'output/compare_{mode}_{self.dt_string}.png')
 
     def illustrate_history(self,
         history: Type[History]) -> None:
@@ -565,7 +625,7 @@ class Model():
             plt.ylabel(f'{key}')
             plt.xlabel('epoch')
             plt.legend(['train', 'test'], loc='upper left')
-            plt.savefig(f'output/{key}_{dt_string}.png')
+            plt.savefig(f'output/{key}_{self.dt_string}.png')
 
     def _layer_shapes(self, model):
         for l in model.layers:
@@ -591,10 +651,6 @@ class Model():
             for line in file:
                 logging.info(line)
         self.model.summary(print_fn=lambda x: logging.info(x + '\n'))
-        logging.info(history.history.keys())
-        for key in history.history.keys():
-            logging.info(f'History for {key}: \n')
-            logging.info(history.history[key])
 
 """
 .. warning:: This script assumes you have a the following setup:

@@ -1,10 +1,7 @@
-from keras import backend as K
-from keras.layers import Conv2D
-from keras.engine.topology import Layer
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Conv2D, Layer
 import numpy as np
 import tensorflow as tf
-from keras.engine import Layer, InputSpec
-from keras.utils.generic_utils import get_custom_objects
 
 class SubPixel3D(Layer):
     # Sub-pixel convolution layer.

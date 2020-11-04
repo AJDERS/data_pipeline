@@ -122,16 +122,12 @@ class FrameGenerator:
         .. warning:: If a scatterer leaves the frame its coordinates will be
             set to ``np.nan`` from that timestep and beyond. 
         """
-        finished_frame = frame
+        finished_frame = frame.copy()
         if self.stacks:
-            finished_label = frame
-
-        if self.tracks:
-            scat_pos = []
-
+            finished_label = frame.copy()
         if self.movement:
-            for _ in range(self.num_scatter):
-                scat_pos_timeseries = []
+            scat_pos = np.zeros((self.num_scatter, 2, self.duration))
+            for k in range(self.num_scatter):
                 for t in range(self.duration):
                     temp_frame = np.zeros(frame[:,:,t].shape)
                     if self.stacks:
@@ -142,8 +138,8 @@ class FrameGenerator:
                         x = r.randint(0, self.target_size-1)
                         y = r.randint(0, self.target_size-1)
                     else:
-                        previous_x = scat_pos_timeseries[t-1][0]
-                        previous_y = scat_pos_timeseries[t-1][1]
+                        previous_x = scat_pos[k,0,t-1]
+                        previous_y = scat_pos[k,1,t-1]
                         x, y = self._next_pos(
                             previous_x,
                             previous_y,
@@ -183,17 +179,17 @@ class FrameGenerator:
                                 temp_label
                             )
                         )
-                    scat_pos_timeseries.append((x, y, t))
-                if self.tracks:
-                    scat_pos.append(scat_pos_timeseries)
+                    scat_pos[k,0,t] = x
+                    scat_pos[k,1,t] = y
             if all([self.stacks, self.tracks]):
                 return finished_frame, finished_label, scat_pos
             elif self.stacks:
-                return finished_frame, finished_label, None
+                return finished_frame, finished_label, scat_pos
             else:
                 return finished_frame, None, scat_pos
         else:
-            for _ in range(self.num_scatter):
+            scat_pos = np.zeros((self.num_scatter, 2, 1))
+            for k in range(self.num_scatter):
                 temp_frame = np.zeros(frame.shape)
                 temp_label = np.zeros(frame.shape)
                 # If first time step, place randomly, else make movement.
@@ -204,6 +200,8 @@ class FrameGenerator:
                 # Place scatterer
                 temp_frame[x,y] = 1.0
                 temp_label[x,y] = 1.0
+                scat_pos[k,0,0] = x
+                scat_pos[k,1,0] = y
 
                 # Convolve with gaussian map
                 temp_frame = convolve2d(
@@ -229,7 +227,7 @@ class FrameGenerator:
                         temp_label
                     )
                 )
-            return finished_frame, finished_label, None
+            return finished_frame, finished_label, scat_pos
 
 
     def _gaussian_map(self, sigma: float, mu: float) -> np.ndarray:
@@ -287,12 +285,12 @@ class FrameGenerator:
         assert self.tracks, 'Tracks is set to False in the config.'
         shape = (self.target_size, self.target_size)
         frame = np.zeros(shape)
-        for scatterer in scat_pos:
-            for first, second in zip(scatterer, scatterer[1:]):
+        for scatterer in scat_pos[:]:
+            for first, second in zip(np.transpose(scatterer[:]), np.transpose(scatterer)[1:]):
                 # Connect the points.
                 dist = np.floor(
                     np.linalg.norm(
-                        np.array(first[:-1])-np.array(second[:-1])
+                        np.array(first)-np.array(second)
                     )
                 )
                 # Check for zero division.
@@ -357,6 +355,13 @@ class FrameGenerator:
             array=output,
             data_type='data',
             name='stack_'+str(index).zfill(5),
+            type_of_data=mode,
+            container_dir=self.container_dir,
+        )
+        loader.compress_and_save(
+            array=scat_pos,
+            data_type='scatterer_positions',
+            name='pos_'+str(index).zfill(5),
             type_of_data=mode,
             container_dir=self.container_dir,
         )
