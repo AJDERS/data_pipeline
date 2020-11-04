@@ -270,7 +270,11 @@ class FrameGenerator:
             frame /= maximum
         return frame
 
-    def _make_tracks(self, scat_pos: list) -> np.ndarray:
+    def _make_tracks(
+        self,
+        scat_pos: np.ndarray,
+        gaussian_map_label: np.ndarray
+    ) -> np.ndarray:
         """
         **Creates frames with tracks from position data.**
         
@@ -309,6 +313,11 @@ class FrameGenerator:
                     )
                     if self._in_frame((x,y)):
                         frame[x, y] += 1.0
+        frame = convolve2d(
+                    frame,
+                    gaussian_map_label,
+                    'same'
+        )
         return frame
 
 
@@ -360,7 +369,7 @@ class FrameGenerator:
                 container_dir=self.container_dir,
             )
         if self.tracks:
-            tracks = self._make_tracks(scat_pos)
+            tracks = self._make_tracks(scat_pos, gaussian_map_label)
             loader.compress_and_save(
                 array=tracks,
                 data_type='labels',
