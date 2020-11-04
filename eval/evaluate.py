@@ -17,13 +17,14 @@ class Evaluator():
         self.config = config
         self.scat_pos = scatterer_positions.astype(int)
         self.movement = self.config['DATA'].getboolean('Movement')
+        self.tracks = self.config['DATA'].getboolean('Tracks')
         self.filter_size = filter_size
 
     def _find_local_maxima(self, frame):
         return maximum_filter(frame, self.filter_size)
 
     def _find_all_maxima(self):
-        if self.movement:
+        if self.movement and not self.tracks:
             maxima = np.zeros(self.predicted_batch.shape)
             for s, stack in enumerate(self.predicted_batch):
                 for t in range(self.config['DATA'].getint('MovementDuration')):
@@ -37,7 +38,7 @@ class Evaluator():
     def _check_if_scat_pos_is_max(self, mask):
         score = 0
         correct = []
-        if self.movement:
+        if self.movement and not self.tracks:
             for s, stack in enumerate(self.scat_pos):
                 for t in range(stack.shape[3]):
                     xs = stack[:,0,t,0]
@@ -60,7 +61,7 @@ class Evaluator():
 
     def _add_correct_to_frame(self, correct):
         show_correct = self.predicted_batch.copy()
-        if self.movement:
+        if self.movement and not self.tracks:
             for (s,x,y,t) in correct:
                 show_correct[s,x,y,t] += 2.0
         else:
