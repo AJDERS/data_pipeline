@@ -219,6 +219,9 @@ def _up_block(
         )(tensor)
 
     elif up_sampling == 'subpixel':
+        if type(scale) == int:
+            scale = (scale, scale, scale)
+
         if not conv_1d_later:
             tensor = SubPixel3D(scale=scale)(tensor)
             tensor = Conv3D(
@@ -231,7 +234,7 @@ def _up_block(
         else:
 
             tensor = Conv3D(
-                filters=num_filters*scale[0]**scale[1],
+                filters=num_filters*scale[0]*scale[1],
                 kernel_size=1,
                 padding=padding,
                 kernel_initializer=initializer
