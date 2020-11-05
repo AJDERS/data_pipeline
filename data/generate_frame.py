@@ -29,14 +29,19 @@ class FrameGenerator:
         self.config.read(config_path)
         self.num_data_train = self.config['DATA'].getint('NumDataTrain')
         self.num_data_valid = self.config['DATA'].getint('NumDataValid')
+        self.num_data_eval = self.config['DATA'].getint('NumDataEval')
         self.target_size = self.config['DATA'].getint('TargetSize')
-        self.num_scatter = self.config['DATA'].getint('NumScatter')
+        num_scatter_train_tmp = self.config['DATA'].get('NumScatterTrain')
+        self.num_scatter_train =  [int(y) for y in num_scatter_train_tmp.split(',')]
+        num_scatter_eval_tmp = self.config['DATA'].get('NumScatterEval')
+        self.num_scatter_eval =  [int(y) for y in num_scatter_eval_tmp.split(',')]
         self.movement = self.config['DATA'].getboolean('Movement')
         velocity_tmp = self.config['DATA'].get('MovementVelocityRange')
         self.velocity = [int(y) for y in velocity_tmp.split(',')]
         angle_tmp = self.config['DATA'].get('MovementAngleRange')
         self.angle = [int(y) * (np.pi / 180.0) for y in angle_tmp.split(',')]
         self.duration = self.config['DATA'].getint('MovementDuration')
+        self.removal_prob = self.config['DATA'].getfloat('RemovalProbability')
         self.stacks = self.config['DATA'].getboolean('Stacks')
         self.tracks = self.config['DATA'].getboolean('Tracks')
         self.tracks_with_gaussian = self.config['DATA'].getboolean('')
@@ -104,7 +109,8 @@ class FrameGenerator:
         self,
         frame: np.ndarray,
         gaussian_map_data: np.ndarray,
-        gaussian_map_label: np.ndarray
+        gaussian_map_label: np.ndarray,
+        mode: str
     ) -> np.ndarray:
         """
         **Places scatterers in the tensors.**
@@ -129,8 +135,16 @@ class FrameGenerator:
         if self.stacks:
             finished_label = frame.copy()
         if self.movement:
-            scat_pos = np.zeros((self.num_scatter, 2, self.duration))
-            for k in range(self.num_scatter):                
+
+            # Define matrix to contain scatterer positions.
+            if not mode=='evaluation':
+                scat_pos = np.zeros((self.num_scatter_train[1], 2, self.duration))
+                num_scatter = r.randint(self.num_scatter_train[0], self.num_scatter_train[1])
+            else:
+                scat_pos = np.zeros((self.num_scatter_eval[1], 2, self.duration))
+                num_scatter = r.randint(self.num_scatter_eval[0], self.num_scatter_eval[1])
+
+            for k in range(num_scatter):                
                 velocity = r.randint(self.velocity[0], self.velocity[1])
                 angle = r.uniform(self.angle[0], self.angle[1])
                 for t in range(self.duration):
@@ -154,7 +168,8 @@ class FrameGenerator:
 
                     # Place scatterer if in frame
                     if self._in_frame((x,y)):
-                        temp_frame[x,y] = 1.0
+                        if not (r.random() <= self.removal_prob):
+                            temp_frame[x,y] = 1.0
                         if self.stacks:
                             temp_label[x,y] = 1.0
 
@@ -193,8 +208,14 @@ class FrameGenerator:
             else:
                 return finished_frame, None, scat_pos
         else:
-            scat_pos = np.zeros((self.num_scatter, 2, 1))
-            for k in range(self.num_scatter):
+            if not mode=='evaluation':
+                scat_pos = np.zeros((self.num_scatter_train[1], 2, 1))
+                num_scatter = r.randint(self.num_scatter_train[0], self.num_scatter_train[1])
+            else:
+                scat_pos = np.zeros((self.num_scatter_eval[1], 2, 1))
+                num_scatter = r.randint(self.num_scatter_eval[0], self.num_scatter_eval[1])
+            
+            for k in range(num_scatter):
                 temp_frame = np.zeros(frame.shape)
                 temp_label = np.zeros(frame.shape)
                 # If first time step, place randomly, else make movement.
@@ -354,7 +375,8 @@ class FrameGenerator:
         output, label, scat_pos = self._place_scatterers(
             frame,
             gaussian_map_data,
-            gaussian_map_label
+            gaussian_map_label,
+            mode
         )
         loader = loader_mat.Loader()
         loader.compress_and_save(
@@ -443,5 +465,5 @@ class FrameGenerator:
                     gaussian_map_label,
                     i,
                     'evaluation'
-                ) for i in tqdm(range(self.num_data_valid))
+                ) for i in tqdm(range(self.num_data_eval))
         )
