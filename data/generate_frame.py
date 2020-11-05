@@ -39,6 +39,7 @@ class FrameGenerator:
         self.duration = self.config['DATA'].getint('MovementDuration')
         self.stacks = self.config['DATA'].getboolean('Stacks')
         self.tracks = self.config['DATA'].getboolean('Tracks')
+        self.tracks_with_gaussian = self.config['DATA'].getboolean('')
         msg = 'One and only one output format must be set.'
         assert self.stacks != self.tracks, msg
         r.seed(self.config['PIPELINE'].getint('Seed'))
@@ -72,9 +73,8 @@ class FrameGenerator:
         self,
         previous_x: int,
         previous_y: int,
-        angle_range: float,
-        velocity_range: int,
-        track_generation: bool) -> tuple:
+        angle: float,
+        velocity: int) -> tuple:
         """
         **Simple helper function calculating next position in time.**
 
@@ -88,13 +88,6 @@ class FrameGenerator:
         :returns: x,y - which are the new coordinates of the scatterer.
         :rtype: ``tuple``
         """
-        if track_generation:
-            velocity = velocity_range
-            angle = angle_range
-        else:
-            velocity = r.randint(velocity_range[0], velocity_range[1])
-            angle = r.uniform(angle_range[0], angle_range[1])
-        
         x = int(previous_x + np.cos(angle) * velocity)
         y = int(previous_y + np.sin(angle) * velocity)
         return x, y
@@ -137,7 +130,9 @@ class FrameGenerator:
             finished_label = frame.copy()
         if self.movement:
             scat_pos = np.zeros((self.num_scatter, 2, self.duration))
-            for k in range(self.num_scatter):
+            for k in range(self.num_scatter):                
+                velocity = r.randint(self.velocity[0], self.velocity[1])
+                angle = r.uniform(self.angle[0], self.angle[1])
                 for t in range(self.duration):
                     temp_frame = np.zeros(frame[:,:,t].shape)
                     if self.stacks:
@@ -153,9 +148,8 @@ class FrameGenerator:
                         x, y = self._next_pos(
                             previous_x,
                             previous_y,
-                            self.angle,
-                            self.velocity,
-                            False
+                            angle,
+                            velocity
                         )
 
                     # Place scatterer if in frame
@@ -319,15 +313,15 @@ class FrameGenerator:
                         first[1],
                         movement_angle,
                         velocity,
-                        True
                     )
                     if self._in_frame((x,y)):
                         frame[x, y] += 1.0
-        frame = convolve2d(
-                    frame,
-                    gaussian_map_label,
-                    'same'
-        )
+        if self.tracks_with_gaussian:
+            frame = convolve2d(
+                        frame,
+                        gaussian_map_label,
+                        'same'
+            )
         return frame
 
 
