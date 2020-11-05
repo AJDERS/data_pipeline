@@ -602,6 +602,7 @@ class Model():
                 plt.imshow(predicted_stacks[i])
 
             plt.savefig(f'output/compare_{mode}_{self.dt_string}.png')
+            plt.close()
 
     def illustrate_history(self,
         history: Type[History]) -> None:
@@ -618,6 +619,7 @@ class Model():
         """
         # Get metrics which are not `val_{metric}`:
         metrics = [key for key in history.history.keys() if '_' not in key]
+        plt.figure()
         for key in metrics:
             plt.plot(history.history[f'{key}'])
             plt.plot(history.history[f'val_{key}'])
