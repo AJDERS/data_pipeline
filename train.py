@@ -101,37 +101,37 @@ class Model():
 
         # Directory with our training data arrays
         train_data = os.path.join(self.train_path, 'data')
-        train_data_names = os.listdir(train_data)
+        train_data_names = sorted(os.listdir(train_data))
         train_data_dirs = [os.path.join(train_data,fname) for
             fname in train_data_names]
 
         # Directory with our testing data arrays
         valid_data = os.path.join(self.valid_path, 'data')
-        valid_data_names = os.listdir(valid_data)
+        valid_data_names = sorted(os.listdir(valid_data))
         valid_data_dirs = [os.path.join(valid_data,fname) for
             fname in valid_data_names]
 
         # Directory with our testing data arrays
         eval_data = os.path.join(self.eval_path, 'data')
-        eval_data_names = os.listdir(eval_data)
+        eval_data_names = sorted(os.listdir(eval_data))
         eval_data_dirs = [os.path.join(eval_data,fname) for
             fname in eval_data_names]
 
         # Directory with our training label arrays
         train_label = os.path.join(self.train_path, 'labels')
-        train_label_names = os.listdir(train_label)
+        train_label_names = sorted(os.listdir(train_label))
         train_label_dirs = [os.path.join(train_label,fname) for
             fname in train_label_names]
 
         # Directory with our testing data arrays
         valid_label = os.path.join(self.valid_path, 'labels')
-        valid_label_names = os.listdir(valid_label)
+        valid_label_names = sorted(os.listdir(valid_label))
         valid_label_dirs = [os.path.join(valid_label,fname) for
             fname in valid_label_names]
 
         # Directory with our testing data arrays
         eval_label = os.path.join(self.eval_path, 'labels')
-        eval_label_names = os.listdir(eval_label)
+        eval_label_names = sorted(os.listdir(eval_label))
         eval_label_dirs = [os.path.join(eval_label,fname) for
             fname in eval_label_names]
 
@@ -602,6 +602,7 @@ class Model():
                 plt.imshow(predicted_stacks[i])
 
             plt.savefig(f'output/compare_{mode}_{self.dt_string}.png')
+            plt.close()
 
     def illustrate_history(self,
         history: Type[History]) -> None:
@@ -618,6 +619,7 @@ class Model():
         """
         # Get metrics which are not `val_{metric}`:
         metrics = [key for key in history.history.keys() if '_' not in key]
+        plt.figure()
         for key in metrics:
             plt.plot(history.history[f'{key}'])
             plt.plot(history.history[f'val_{key}'])

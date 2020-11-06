@@ -69,19 +69,27 @@ class Evaluator():
                 show_correct[s,x,y] += 2.0
         return show_correct
 
-    def _calculate_accuracy(self, correct, score):
-        num_scat = self.config['DATA'].getint('NumScatter')
-        maximal_score = num_scat * self.scat_pos.shape[0]
-        accuracy = score / maximal_score
-        return accuracy
+    def _calculate_metrics(self, correct, score, num_local_max, num_scat):
+        recall = score / num_scat
+        precision = score / num_local_max
+        return recall, precision
+
+    def num_scatter(self):
+        scat_dim = self.scat_pos.shape[1]
+        pos_dim = self.scat_pos.shape[2]
+        num_scat = np.count_nonzero(self.scat_pos) / (scat_dim * pos_dim)
+        return num_scat
+
 
     def evaluate(self):
         maxima = self._find_all_maxima()
         mask = (self.predicted_batch == maxima).astype(float)
+        num_local_max = np.count_nonzero(mask)
+        num_scat = self.num_scatter()
         correct, score = self._check_if_scat_pos_is_max(mask)
-        accuracy = self._calculate_accuracy(correct, score)
+        recall, precision = self._calculate_metrics(correct, score, num_local_max, num_scat)
         show_correct = self._add_correct_to_frame(correct)
-        return mask, show_correct, accuracy
+        return mask, show_correct, recall, precision
 
 
 
