@@ -45,6 +45,7 @@ class FrameGenerator:
         self.stacks = self.config['DATA'].getboolean('Stacks')
         self.tracks = self.config['DATA'].getboolean('Tracks')
         self.tracks_with_gaussian = self.config['DATA'].getboolean('')
+        self.noise = self.config['DATA'].getfloat('Noise')
         msg = 'One and only one output format must be set.'
         assert self.stacks != self.tracks, msg
         r.seed(self.config['PIPELINE'].getint('Seed'))
@@ -187,6 +188,10 @@ class FrameGenerator:
                             temp_frame
                         )
                     )
+                    # Add noise to frame
+                    noise = np.random.normal(0, self.noise, finished_frame.shape)
+                    finished_frame = finished_frame + noise
+
                     if self.stacks:
                         temp_label = convolve2d(
                             temp_label,
@@ -242,6 +247,10 @@ class FrameGenerator:
                         temp_frame
                     )
                 )
+                # Add noise to frame
+                noise = np.random.normal(0, self.noise, finished_frame.shape)
+                finished_frame = finished_frame + noise
+
                 temp_label = convolve2d(
                     temp_label,
                     gaussian_map_label,
