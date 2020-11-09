@@ -61,8 +61,23 @@ class Model():
         self.eval_Y = None
         self.train_generator = None
         self.valid_generator = None
+        self._allocate_memory()
         self._reset_seeds()
         self._make_logs()
+
+    def _allocate_memory(self):
+        gpus = tf.config.experimental.list_physical_devices('GPU')
+        if gpus:
+          try:
+            # Currently, memory growth needs to be the same across GPUs
+            for gpu in gpus:
+              tf.config.experimental.set_memory_growth(gpu, True)
+            logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+          except RuntimeError as e:
+            # Memory growth must be set before GPUs have been initialized
+            print(e)
+        
 
     def _reset_seeds(self):
         seed = self.config['PIPELINE'].getint('Seed')
@@ -513,6 +528,14 @@ class Model():
                     source_path = os.path.join(self.train_path,'data'),
                     type_of_data = 'data'
                 )
+            if self.train_Y is not None:
+                label = self.train_Y
+            else:
+                label = self.loader.load_array_folder(
+                    source_path = os.path.join(self.train_path,'labels'),
+                    type_of_data = 'labels'
+                )
+                
             scat_pos = self.loader.load_array_folder(
                 source_path = os.path.join(self.train_path,'scatterer_positions'),
                 type_of_data = 'data'
@@ -525,6 +548,14 @@ class Model():
                     source_path = os.path.join(self.valid_path,'data'),
                     type_of_data = 'data'
                 )
+            if self.valid_Y is not None:
+                label = self.valid_Y
+            else:
+                label = self.loader.load_array_folder(
+                    source_path = os.path.join(self.valid_path,'labels'),
+                    type_of_data = 'labels'
+                )
+
             scat_pos = self.loader.load_array_folder(
                 source_path = os.path.join(self.valid_path,'scatterer_positions'),
                 type_of_data = 'scatterer_positions'
@@ -537,6 +568,14 @@ class Model():
                     source_path = os.path.join(self.eval_path,'data'),
                     type_of_data = 'data'
                 )
+            if self.eval_Y is not None:
+                label = self.valid_Y
+            else:
+                label = self.loader.load_array_folder(
+                    source_path = os.path.join(self.valid_path,'labels'),
+                    type_of_data = 'labels'
+                )
+
             scat_pos = self.loader.load_array_folder(
                 source_path = os.path.join(self.eval_path,'scatterer_positions'),
                 type_of_data = 'scatterer_positions'
@@ -545,11 +584,11 @@ class Model():
         batch = data[0:batch_size]
         scat_pos_batch = scat_pos[0:batch_size]
         predicted_batch = self.model.predict(batch)
-        return batch, predicted_batch, scat_pos_batch
+        return batch, predicted_batch, scat_pos_batch, label
 
     def compare_predict(self, mode: str) -> None:
         # Generates frames.
-        batch, predicted_batch, scat_pos_batch = self.predict(mode)
+        batch, predicted_batch, _, _ = self.predict(mode)
         nrows = 2
         ncols = 4
         fig = plt.gcf()
