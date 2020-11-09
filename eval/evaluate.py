@@ -113,11 +113,15 @@ class Evaluator():
         precision = true_p / (true_p + false_p) #### NO FALSE POSITIVES?!?!?!?!?!?
         return recall, precision
 
-    def evaluate(self):
+    def make_mask(self):
         low_values = self._cutoff_low_values()
         maxima = self._find_all_maxima()
         mask = (self.cutoff_batch == maxima).astype(float)
         mask[low_values] = 0.0
+        return mask, maxima
+
+    def evaluate(self):
+        mask, maxima = self.make_mask()
         true_p, true_n, false_p, false_n = self._compare_mask_w_scat_pos(mask)
         recall, precision = self._calculate_metrics(true_p, true_n, false_p, false_n)
         return mask, maxima, recall, precision
