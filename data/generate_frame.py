@@ -133,16 +133,16 @@ class FrameGenerator:
             set to ``np.nan`` from that timestep and beyond. 
         """
         finished_frame = frame.copy()
+        scat_pos = frame.copy()
         if self.stacks:
             finished_label = frame.copy()
         if self.movement:
-
             # Define matrix to contain scatterer positions.
             if not mode=='evaluation':
-                scat_pos = np.zeros((self.num_scatter_train[1], 2, self.duration))
+                tmp_pos = np.zeros((self.num_scatter_train[1], 2, self.duration))
                 num_scatter = r.randint(self.num_scatter_train[0], self.num_scatter_train[1])
             else:
-                scat_pos = np.zeros((self.num_scatter_eval[1], 2, self.duration))
+                tmp_pos = np.zeros((self.num_scatter_eval[1], 2, self.duration))
                 num_scatter = r.randint(self.num_scatter_eval[0], self.num_scatter_eval[1])
 
             for k in range(num_scatter):                
@@ -158,8 +158,8 @@ class FrameGenerator:
                         x = r.randint(0, self.target_size-1)
                         y = r.randint(0, self.target_size-1)
                     else:
-                        previous_x = scat_pos[k,0,t-1]
-                        previous_y = scat_pos[k,1,t-1]
+                        previous_x = tmp_pos[k,0,t-1]
+                        previous_y = tmp_pos[k,1,t-1]
                         x, y = self._next_pos(
                             previous_x,
                             previous_y,
@@ -173,6 +173,7 @@ class FrameGenerator:
                             temp_frame[x,y] = 1.0
                         if self.stacks:
                             temp_label[x,y] = 1.0
+                            scat_pos[x,y,t] = 1.0
 
 
                     # Convolve with gaussian map
@@ -204,20 +205,20 @@ class FrameGenerator:
                                 temp_label
                             )
                         )
-                    scat_pos[k,0,t] = x
-                    scat_pos[k,1,t] = y
+                    tmp_pos[k,0,t] = x
+                    tmp_pos[k,1,t] = y
             if all([self.stacks, self.tracks]):
-                return finished_frame, finished_label, scat_pos
+                return finished_frame, finished_label, scat_pos, tmp_pos
             elif self.stacks:
-                return finished_frame, finished_label, scat_pos
+                return finished_frame, finished_label, scat_pos, tmp_pos
             else:
-                return finished_frame, None, scat_pos
+                return finished_frame, None, scat_pos, tmp_pos
         else:
             if not mode=='evaluation':
-                scat_pos = np.zeros((self.num_scatter_train[1], 2, 1))
+                tmp_pos = np.zeros((self.num_scatter_train[1], 2, 1))
                 num_scatter = r.randint(self.num_scatter_train[0], self.num_scatter_train[1])
             else:
-                scat_pos = np.zeros((self.num_scatter_eval[1], 2, 1))
+                tmp_pos = np.zeros((self.num_scatter_eval[1], 2, 1))
                 num_scatter = r.randint(self.num_scatter_eval[0], self.num_scatter_eval[1])
             
             for k in range(num_scatter):
@@ -231,8 +232,9 @@ class FrameGenerator:
                 # Place scatterer
                 temp_frame[x,y] = 1.0
                 temp_label[x,y] = 1.0
-                scat_pos[k,0,0] = x
-                scat_pos[k,1,0] = y
+                scat_pos[x,y] = 1.0
+                tmp_pos[k,0,0] = x
+                tmp_pos[k,1,0] = y
 
                 # Convolve with gaussian map
                 temp_frame = convolve2d(
@@ -262,7 +264,7 @@ class FrameGenerator:
                         temp_label
                     )
                 )
-            return finished_frame, finished_label, scat_pos
+            return finished_frame, finished_label, scat_pos, tmp_pos
 
 
     def _gaussian_map(self, sigma: float, mu: float) -> np.ndarray:
@@ -305,7 +307,7 @@ class FrameGenerator:
 
     def _make_tracks(
         self,
-        scat_pos: np.ndarray,
+        tmp_pos: np.ndarray,
         gaussian_map_label: np.ndarray
     ) -> np.ndarray:
         """
@@ -320,7 +322,7 @@ class FrameGenerator:
         assert self.tracks, 'Tracks is set to False in the config.'
         shape = (self.target_size, self.target_size)
         frame = np.zeros(shape)
-        for scatterer in scat_pos[:]:
+        for scatterer in tmp_pos[:]:
             for first, second in zip(np.transpose(scatterer[:]), np.transpose(scatterer)[1:]):
                 # Connect the points.
                 dist = np.floor(
@@ -381,7 +383,7 @@ class FrameGenerator:
         :type mode: ``str``.
         """
         frame = self._make_frame()
-        output, label, scat_pos = self._place_scatterers(
+        output, label, scat_pos, tmp_pos = self._place_scatterers(
             frame,
             gaussian_map_data,
             gaussian_map_label,
@@ -411,7 +413,7 @@ class FrameGenerator:
                 container_dir=self.container_dir,
             )
         if self.tracks:
-            tracks = self._make_tracks(scat_pos, gaussian_map_label)
+            tracks = self._make_tracks(tmp_pos, gaussian_map_label)
             loader.compress_and_save(
                 array=tracks,
                 data_type='labels',
