@@ -134,8 +134,7 @@ class FrameGenerator:
         """
         finished_frame = frame.copy()
         scat_pos = frame.copy()
-        if self.stacks:
-            finished_label = frame.copy()
+        finished_label = frame.copy()
         if self.movement:
             # Define matrix to contain scatterer positions.
             if not mode=='evaluation':
@@ -150,8 +149,7 @@ class FrameGenerator:
                 angle = r.uniform(self.angle[0], self.angle[1])
                 for t in range(self.duration):
                     temp_frame = np.zeros(frame[:,:,t].shape)
-                    if self.stacks:
-                        temp_label = np.zeros(frame[:,:,t].shape)
+                    temp_label = np.zeros(frame[:,:,t].shape)
 
                     # If first time step, place randomly, else make movement.
                     if t == 0:
@@ -169,11 +167,11 @@ class FrameGenerator:
 
                     # Place scatterer if in frame
                     if self._in_frame((x,y)):
+                        scat_pos[x,y,t] = 1.0
+                        temp_label[x,y] = 1.0
                         if not (r.random() <= self.removal_prob):
                             temp_frame[x,y] = 1.0
-                        if self.stacks:
-                            temp_label[x,y] = 1.0
-                            scat_pos[x,y,t] = 1.0
+
 
 
                     # Convolve with gaussian map
@@ -193,18 +191,17 @@ class FrameGenerator:
                     noise = np.random.normal(0, self.noise, finished_frame.shape)
                     finished_frame = finished_frame + noise
 
-                    if self.stacks:
-                        temp_label = convolve2d(
-                            temp_label,
-                            gaussian_map_label,
-                            'same'
+                    temp_label = convolve2d(
+                        temp_label,
+                        gaussian_map_label,
+                        'same'
+                    )
+                    finished_label[:,:,t] = self._normalize(
+                        np.maximum(
+                            finished_label[:,:,t],
+                            temp_label
                         )
-                        finished_label[:,:,t] = self._normalize(
-                            np.maximum(
-                                finished_label[:,:,t],
-                                temp_label
-                            )
-                        )
+                    )
                     tmp_pos[k,0,t] = x
                     tmp_pos[k,1,t] = y
             if all([self.stacks, self.tracks]):
@@ -212,7 +209,7 @@ class FrameGenerator:
             elif self.stacks:
                 return finished_frame, finished_label, scat_pos, tmp_pos
             else:
-                return finished_frame, None, scat_pos, tmp_pos
+                return finished_frame, finished_label, scat_pos, tmp_pos
         else:
             if not mode=='evaluation':
                 tmp_pos = np.zeros((self.num_scatter_train[1], 2, 1))
@@ -305,55 +302,25 @@ class FrameGenerator:
             frame /= maximum
         return frame
 
-    def _make_tracks(
-        self,
-        tmp_pos: np.ndarray,
-        gaussian_map_label: np.ndarray
-    ) -> np.ndarray:
+    def _make_tracks(self, label: np.ndarray) -> np.ndarray:
         """
         **Creates frames with tracks from position data.**
         
-        :param scat_pos: A list of lists of tuples of positions.
-        :type scat_pos: ``list``.
+        :param label: A list of lists of tuples of positions.
+        :type label: ``list``.
         :returns: Frame with tracks.
         :rtype: ``np.ndarray`.
         """
         assert self.movement, 'Movement is set to False in the config.'
         assert self.tracks, 'Tracks is set to False in the config.'
-        shape = (self.target_size, self.target_size)
-        frame = np.zeros(shape)
-        for scatterer in tmp_pos[:]:
-            for first, second in zip(np.transpose(scatterer[:]), np.transpose(scatterer)[1:]):
-                # Connect the points.
-                dist = np.floor(
-                    np.linalg.norm(
-                        np.array(first)-np.array(second)
-                    )
-                )
-                # Check for zero division.
-                if first[0] == second[0]:
-                    movement_angle = np.pi/2
-                else:
-                    movement_angle = np.arctan(
-                        (first[1]-second[1])/(first[0]-second[0])
-                    )
-                # For each point along the line between the two scatterers
-                # add to frame if the point is in frame.
-                for velocity in range(int(dist)):
-                    x, y = self._next_pos(
-                        first[0],
-                        first[1],
-                        movement_angle,
-                        velocity,
-                    )
-                    if self._in_frame((x,y)):
-                        frame[x, y] += 1.0
-        if self.tracks_with_gaussian:
-            frame = convolve2d(
-                        frame,
-                        gaussian_map_label,
-                        'same'
-            )
+        frame = self._make_frame()
+        for t in range(self.duration):
+            if not t == 0:
+                frames = [label[:,:,time] for time in range(1,t+1)]
+                stacked_frames = np.maximum.reduce(frames)
+            else:
+                stacked_frames = label[:,:,0]
+            frame[:,:,t] = stacked_frames
         return frame
 
 
@@ -404,6 +371,13 @@ class FrameGenerator:
             type_of_data=mode,
             container_dir=self.container_dir,
         )
+        loader.compress_and_save(
+            array=tmp_pos,
+            data_type='tracks',
+            name=str(index).zfill(5),
+            type_of_data=mode,
+            container_dir=self.container_dir,
+        )
         if self.stacks:
             loader.compress_and_save(
                 array=label,
@@ -413,7 +387,7 @@ class FrameGenerator:
                 container_dir=self.container_dir,
             )
         if self.tracks:
-            tracks = self._make_tracks(tmp_pos, gaussian_map_label)
+            tracks = self._make_tracks(label)
             loader.compress_and_save(
                 array=tracks,
                 data_type='labels',

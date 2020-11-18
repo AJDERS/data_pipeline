@@ -56,7 +56,7 @@ class Loader():
         size_ratio: float = 1.0
         ) -> np.ndarray:
 
-        assert type_of_data in ['data', 'labels', 'scatterer_positions']
+        assert type_of_data in ['data', 'labels', 'scatterer_positions', 'tracks']
         folder = os.path.join(source_path)
         file_names = sorted(os.listdir(folder))
 
