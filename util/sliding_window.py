@@ -1,15 +1,16 @@
 import os
 import configparser
 import numpy as np
+from tqdm import tqdm
 from .loader_mat import Loader
 
 
 class SlidingWindow:
 
     def __init__(self, data_folder_path, config_path):
-        self.prior_frames = 3
-        self.future_frames = 3
-        self.window_size = self.prior_frames + self.future_frames
+        self.prior = 4
+        self.future = 4
+        self.window_size = self.prior + self.future
         self.loader = Loader()
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
@@ -38,144 +39,203 @@ class SlidingWindow:
             type_of_data = 'tracks',
         )
 
-    def  _add_candidates(self,
-        data,
+    def _slinding_windows_labels(self, data):
+        num_sliding_windows = self.time-self.window_size+1
+        self.sliding_windows_label = []
+        for index in tqdm(range(self.batch_size)):
+            for scatterer_index in range(self.scatterer):
+                for time in range(0, num_sliding_windows):
+                    self.index = index
+                    self.scatterer_index = scatterer_index
+                    window = data[
+                            index,
+                            scatterer_index,
+                            :,
+                            time:time+self.window_size
+                        ]
+                    self._append_data_label(time, window)
+        self._remove_warmup_label()
+
+    def _slinding_windows(self, data, threshold):
+        num_sliding_windows = self.time-self.window_size
+        self.sliding_windows = []
+        for index in tqdm(range(self.batch_size)):
+            for scatterer_index in range(self.scatterer):
+                for time in range(0, num_sliding_windows):
+                    self.index = index
+                    self.scatterer_index = scatterer_index
+                    if time == 0:
+                        window = data[
+                            index,
+                            scatterer_index,
+                            :,
+                            time:time+self.window_size
+                        ]
+                        self._append_data(time, (0, window))
+                        window = window[:, 1:]
+                        new_windows = self._add_candidate(
+                            index,
+                            time,
+                            window,
+                            data,
+                            threshold
+                        )
+                        self._append_data(time+1, (0, new_windows))
+                    else:
+                        #previous_windows = new_windows
+                        previous_windows = []
+                        for win in self.sliding_windows:
+                            if (win[0]==index) and (win[1]==scatterer_index) and (win[2]==(time-self.prior)):
+                                previous_windows.append(win[3])
+
+                        new_windows = []
+                        for previous_window in previous_windows:
+                            previous_candidate_index = previous_window[1]
+                            window = previous_window[2][:, 1:]
+                            new_windows_for_candidate = self._add_candidate(
+                                index,
+                                time,
+                                window,
+                                data,
+                                threshold
+                            )
+                            new_windows.append(
+                                (previous_candidate_index, new_windows_for_candidate)
+                            )
+                        #new_windows = [item for sublist in new_windows for item in sublist]
+                        for new_window in new_windows:
+                            self._append_data(time+1, new_window)
+        self._remove_warmup()
+
+    def _append_data_label(self, time, window):
+        self.sliding_windows_label.append(
+            (
+                self.index,
+                self.scatterer_index,
+                time-self.prior,
+                window
+            )
+        )
+
+    def _organize_windows(self):
+        num_sliding_windows = self.time-self.window_size-self.prior
+        self.prior_frames = []
+        self.future_frames = []
+        self.prior_frames_label = []
+        self.future_frames_label = []
+        xs = self.sliding_windows
+        ys = self.sliding_windows_label
+        X = []
+        Y = []
+        for index in tqdm(range(self.batch_size)):
+            x = []
+            y = []
+            for scatterer_index in range(self.scatterer):
+                for time in range(0, num_sliding_windows):
+                    for tup in xs:
+                        # Take all sliding windows with current index,
+                        # scatterer index and time
+                        if (
+                            (tup[0]==index)
+                            and (tup[1]==scatterer_index)
+                            and (tup[2]==time)
+                        ):
+                            x.append(tup[3][2])
+                            # Take corresponding label
+                            # To avoid look-ups in the list of labels we use the below index
+                            y_index = index*self.batch_size+scatterer_index*self.scatterer+time
+                            y.append(ys[y_index][3])
+            X.append(np.array(x))
+            Y.append(np.array(y))
+        X = np.array(X)
+        Y = np.array(Y)
+        return X, Y
+
+
+    def _append_data(self, time, window):
+        """
+        For a given dataset (index), scatterer (scatterer_index) and time
+        (time), a list of movement candidates are found, i.e. which scatterers
+        are within a certain distance threshold of the current scatterer.
+        For each candidate (indexed by candidate) this procedure is repeated.
+        For the next time step the `candidate` index is set to 
+        `previous_candidate`.  
+
+        self.sliding_windows contains all of this information, i.e. is a list
+        of tuples which contain the following data:
+        (index, scatterer_index, time, (previous_candidate, candidate, window))
+
+        index: The index of the dataset in the batch.
+        scatterer_index: The index of the scatterer in the dataset.
+        time: The time index of the specific scatterer in the dataset.
+        previous_candidate: the index among the previous sliding windows 
+            movement candidates.
+        candidate: the index among the current sliding windows movement candidates.
+
+        So to keep track of a stack of sliding windows, you pick a `index` and
+        `scatterer` and at each time you know the sliding windows previous sliding
+        window and the list of sliding windows it gives rise to.
+        """
+        if type(window[1]) == list:
+            for i, win in enumerate(window[1]):
+                self.sliding_windows.append(
+                    (
+                        self.index,
+                        self.scatterer_index,
+                        time-self.prior,
+                        (window[0], i, win)
+                    )
+                )
+        else:
+            self.sliding_windows.append(
+                (
+                    self.index,
+                    self.scatterer_index,
+                    time-self.prior,
+                    (window[0], 0, window[1])
+                )
+            )
+
+
+    def _remove_warmup(self):
+        self.sliding_windows = [x for x in self.sliding_windows if x[2] >= 0]
+
+    def _remove_warmup_label(self):
+        self.sliding_windows_label = [x for x in self.sliding_windows_label if x[2] >= 0]
+
+    def _add_candidate(
+        self,
         index,
         time,
-        current_window,
-        threshold,
-        candidate_index):
-        # data, (batch, scatterer, coords, time, channel)
-        # candidates, (scatterer, coords, channel)
-        candidates = data[index, :, :, time + 1, :]
-        new_windows = []
-        # current_window, (candidates, coord, time, channel)
-        current_scatterer = current_window[candidate_index, :, time]
+        window,
+        data,
+        threshold
+    ):
+        current_scatterer = window[:, -1]
+        # If the last step in the window is np.nan, go further back
+        # and increase threshold to account for occlution.
+        if np.isnan(np.sum(current_scatterer)):
+            current_scatterer = window[:, -2]
+            threshold *= 2
+
+        candidates = data[index, :, :, time+self.window_size]
         distances = []
+        new_windows = []
+        suitable_candidate = False
         for c in range(self.scatterer):
             candidate = candidates[c]
             dist = np.linalg.norm(current_scatterer - candidate)
-            # candidates[c], (coords, channel)
             distances.append((dist, c))
             if dist < threshold:
-                window_ = current_window.copy()
-                window_[candidate_index, :, time + 1, :] = candidate
+                suitable_candidate = True
+                window_ = window.copy()
+                candidate = np.reshape(candidate, (2,1,1))
+                window_ = np.append(window_, candidate, axis=1)
                 new_windows.append(window_)
-        if not new_windows:
-            # If no candidate within range pick nearest.
-            candidate_w_min_dist = sorted(distances, key=lambda x: x[0])[0][1]
-            window_ = current_window.copy()
-            candidate = candidates[candidate_w_min_dist]
-            window_[:, :, time + 1, :] = candidate
+        if not suitable_candidate:
+            window_ = window.copy()
+            empty = np.empty((2,1,1))
+            empty[:] = np.nan
+            window_ = np.append(window_, empty, axis=1)
             new_windows.append(window_)
-        new_windows = np.concatenate(new_windows,0)
-        # new_windows, (candidate, coords, time, channel)
-        return new_windows
-
-    def _initial_window(
-        self,
-        data,
-        index,
-        scatterer_index,
-        t,
-        threshold):
-
-        sliding_window = np.zeros(
-            (1, self.coords, self.window_size, 1)
-        )
-        # Add dummy variables
-        sliding_window[:, :, 0:self.prior_frames, :] = np.nan
-        # Add real values
-        sliding_window[:, :,self.prior_frames,:] = data[
-            index,
-            scatterer_index,
-            :, 
-            t, 
-            :
-        ]
-        # Add candidates
-        sliding_window = self._add_candidates(
-            data,
-            index, 
-            self.prior_frames,
-            sliding_window,
-            threshold,
-            0
-        )
-        for frame in range(1, self.future_frames-1):
-            for candidate_index in range(sliding_window.shape[0]):
-                sliding_window = self._add_candidates(
-                    data,
-                    index, 
-                    self.prior_frames + frame,
-                    sliding_window,
-                    threshold,
-                    candidate_index
-                )
-        return sliding_window
-
-    def slinding_windows(self, data, threshold):
-        num_sliding_windows = self.time-self.window_size+1
-        sliding_windows = []
-        # `(batch, scatterer, sliding_window_index, array(candidate, coord, time, channel))`
-        # `(batch, scatterer, sliding_window_index)` are used to refer back to correct
-        # track. `candidate` is used to enumerate the different candidates.
-        for index in range(self.batch_size):
-            for scatterer_index in range(self.scatterer):
-                for t in range(0, num_sliding_windows):
-                    if t == 0:
-                        sliding_window = self._initial_window(
-                            data,
-                            index,
-                            scatterer_index,
-                            t,
-                            threshold
-                        )
-                        sliding_windows.append(
-                            (
-                                index,
-                                scatterer_index,
-                                t,
-                                sliding_window
-                            )
-                        )
-                    else:
-                        # previous_windows, (candidates, coords, time, channel)
-                        previous_windows = sliding_windows[-1][-1]
-                        # sliding_window, (candidates, coords, time, channel)
-                        sliding_window = np.zeros(
-                            (
-                                previous_windows.shape[0],
-                                self.coords,
-                                self.window_size,
-                                1
-                            )
-                        )
-                        for candidate_index in range(previous_windows.shape[0]):
-                            # Add last entries in from previous sliding window 
-                            # as first entries in new sliding window
-                            sliding_window[
-                                candidate_index,
-                                :,
-                                0:(self.window_size - 1),
-                                :
-                            ] = previous_windows[candidate_index,:,1:,:]
-
-                            # Add candidates.
-                            sliding_window = self._add_candidates(
-                                data,
-                                index, 
-                                self.prior_frames + t, # this takes the last time entry
-                                sliding_window,
-                                threshold,
-                                0
-                            )
-                            sliding_windows.append(
-                                (
-                                    index,
-                                    scatterer_index,
-                                    t,
-                                    sliding_window
-                                )
-                            )
-                return sliding_windows
+        return new_windows        
