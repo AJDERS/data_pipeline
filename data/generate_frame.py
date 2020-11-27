@@ -138,10 +138,12 @@ class FrameGenerator:
         if self.movement:
             # Define matrix to contain scatterer positions.
             if not mode=='evaluation':
-                tmp_pos = np.zeros((self.num_scatter_train[1], 2, self.duration))
+                tmp_pos = np.empty((self.num_scatter_train[1], 2, self.duration))
+                tmp_pos[:] = np.nan
                 num_scatter = r.randint(self.num_scatter_train[0], self.num_scatter_train[1])
             else:
-                tmp_pos = np.zeros((self.num_scatter_eval[1], 2, self.duration))
+                tmp_pos = np.empty((self.num_scatter_eval[1], 2, self.duration))
+                tmp_pos[:] = np.nan
                 num_scatter = r.randint(self.num_scatter_eval[0], self.num_scatter_eval[1])
 
             for k in range(num_scatter):                
@@ -187,9 +189,6 @@ class FrameGenerator:
                             temp_frame
                         )
                     )
-                    # Add noise to frame
-                    noise = np.random.normal(0, self.noise, finished_frame.shape)
-                    finished_frame = finished_frame + noise
 
                     temp_label = convolve2d(
                         temp_label,
@@ -204,6 +203,12 @@ class FrameGenerator:
                     )
                     tmp_pos[k,0,t] = x
                     tmp_pos[k,1,t] = y
+            
+            for t in range(self.duration):
+                # Add noise to frame
+                noise = np.random.normal(0, self.noise, finished_frame.shape[:-1])
+                finished_frame[:,:,t] = finished_frame[:,:,t] + noise
+
             if all([self.stacks, self.tracks]):
                 return finished_frame, finished_label, scat_pos, tmp_pos
             elif self.stacks:
