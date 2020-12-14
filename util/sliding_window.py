@@ -1,9 +1,9 @@
 import os
 import configparser
 import numpy as np
+import tensorflow as tf
 from tqdm import tqdm
 from .loader_mat import Loader
-
 
 class SlidingWindow:
 
@@ -147,8 +147,39 @@ class SlidingWindow:
                             y.append(ys[y_index][3])
             X.append(np.array(x))
             Y.append(np.array(y))
+        X, Y = self._make_input(X, Y)
         return X, Y
 
+
+    def _make_input(self, inputs, labels):
+        """
+        Seems complicated, but is to ensure, that we get output shape:
+        [batch_size, window_size, 2, channel, (candidate)]
+        where (candidate) is a ragged dimension.
+        This is to better fit with LSTM/RNN input conventions.
+        The `RaggedTensor` API is lackluster to say the least,
+        so this is a hacky version to get the correct dimensions, while
+        using the `RaggedTensor` functionalities when training.
+
+        """
+        x0 = []
+        y0 = []
+        for x in range(len(inputs)):
+            for i in range(inputs[0].shape[2]):
+                for j in range(inputs[0].shape[1]):
+                    for k in range(inputs[0].shape[-1]):
+                        x0.append(inputs[x][:,j,i,k])
+                        y0.append(labels[x][:,j,i,k])
+        
+        x1 = tf.ragged.constant(x0)
+        x2 = tf.RaggedTensor.from_uniform_row_length(x1, 1)
+        x3 = tf.RaggedTensor.from_uniform_row_length(x2, 2)
+        x4 = tf.RaggedTensor.from_uniform_row_length(x3, self.window_size)
+        y1 = tf.ragged.constant(y0)
+        y2 = tf.RaggedTensor.from_uniform_row_length(y1, 1)
+        y3 = tf.RaggedTensor.from_uniform_row_length(y2, 2)
+        y4 = tf.RaggedTensor.from_uniform_row_length(y3, self.window_size)
+        return x4, y4
 
     def _append_data(self, time, window):
         """
