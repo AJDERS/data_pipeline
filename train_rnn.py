@@ -79,7 +79,6 @@ class Compiler():
 
     def compile_and_fit(self):
         X, Y = self._make_windows()
-        X, Y = self.model._make_input(X, Y)
         patience = self.config['TRAINING'].getint('Patience')
         epochs = self.config['TRAINING'].getint('Epochs')
 
