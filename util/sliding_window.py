@@ -8,13 +8,13 @@ from .loader_mat import Loader
 class SlidingWindow:
 
     def __init__(self, data_folder_path, config_path):
-        self.prior = 4
-        self.future = 4
-        self.window_size = self.prior + self.future
         self.loader = Loader()
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
         self.config_path = config_path
+        self.prior = self.config['RNN'].getint('Prior')
+        self.future = self.config['RNN'].getint('Future')
+        self.window_size = self.prior + self.future
         self.data_folder_path = data_folder_path
         self.train_path = os.path.join(self.data_folder_path, 'training')
         self.valid_path = os.path.join(self.data_folder_path, 'validation')
@@ -147,8 +147,6 @@ class SlidingWindow:
                             y.append(ys[y_index][3])
             X.append(np.array(x))
             Y.append(np.array(y))
-        X = np.array(X)
-        Y = np.array(Y)
         return X, Y
 
 
