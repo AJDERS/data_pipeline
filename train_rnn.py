@@ -12,11 +12,13 @@ from typing import Type
 from datetime import datetime
 from models.feedback import Feedback
 from util import clean_storage_folder as cleaner
-from util.sliding_window import SlidingWindow
+from util.organiser import Organiser
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam
 from tensorflow.python.keras import backend
 from tensorflow.keras.callbacks import History
+from matplotlib.animation import FuncAnimation, PillowWriter
+
 
 class Compiler():
 
@@ -25,14 +27,16 @@ class Compiler():
         self.config.read(config_path)
         self.config_path = config_path
         self.data_folder_path = data_folder_path
-        self.train_path = os.path.join(self.data_folder_path, 'training')
-        self.valid_path = os.path.join(self.data_folder_path, 'validation')
-        self.eval_path = os.path.join(self.data_folder_path, 'evaluation')
-        self.windows = SlidingWindow(data_folder_path, config_path)
+        self.organiser = Organiser(data_folder_path, config_path)
         self._set_runtime_variables()
         self._allocate_memory()
         self._reset_seeds()
         self._make_logs()
+        self._load_data()
+        self._set_dtype()
+
+    def _set_dtype(self):
+        tf.keras.backend.set_floatx('float64')
 
     def _set_runtime_variables(self):
         self.train_X = None
@@ -83,26 +87,7 @@ class Compiler():
                     level=logging.INFO
         )
 
-
-    def _make_windows(self, mode):
-        assert mode in ['training', 'validation', 'evaluation'], 'Invalid mode.'
-        threshold = self.config['RNN'].getint('CandidateThreshold')
-        if mode == 'training':
-            self.windows._slinding_windows(self.windows.train_tracks, threshold)
-            self.windows._slinding_windows_labels(self.windows.train_tracks)
-            return self.windows._organize_windows()
-        elif mode == 'validation':
-            self.windows._slinding_windows(self.windows.val_tracks, threshold)
-            self.windows._slinding_windows_labels(self.windows.val_tracks)
-            return self.windows._organize_windows()
-        else:
-            self.windows._slinding_windows(self.windows.eval_tracks, threshold)
-            self.windows._slinding_windows_labels(self.windows.eval_tracks)
-            return self.windows._organize_windows()
-
-
-
-    def build_model(self, batch_size=None, window_size=None, features=None) -> None:
+    def build_model(self, generator) -> None:
         """
         **This method builds a model if none is loaded.**
 
@@ -124,55 +109,50 @@ class Compiler():
                 self.model = getattr(model, class_)
             else:
                 class_ = getattr(model, class_)
-                model = class_(
-                    self.config_path,
-                    batch_size,
-                    window_size,
-                    features
+                self.model = class_(
+                    generator,
+                    self.config_path
                 )
-                self.model = model.create_model()
         else:
             print('Model is already loaded.')
 
     def _load_data(self):
-        self.train_X, self.train_Y = self._make_windows(mode='training')
-        self.valid_X, self.valid_Y = self._make_windows(mode='validation')
-        self.eval_X, self.eval_Y = self._make_windows(mode='evaluation')
+        pass
 
     def compile_and_fit(self):
-        self._load_data()
-
-        features = self.train_X.shape[-1]
+        generator = self.organiser._make_batch('training')
+        val_generator = self.organiser._make_batch('validation')
         self.build_model(
-            self.windows.batch_size,
-            self.windows.window_size,
-            features
+            generator
         )
-        self.model.summary()
+        #self.model.summary()
         epochs = self.config['TRAINING'].getint('Epochs')
         learning_rate = self.config['TRAINING'].getfloat('LearningRate')
 
         cp_callback, early_stopping = self._checkpoints()
         self.model.compile(
-            loss='mean_squared_error',
+            loss=self.custom_loss,
             optimizer=Adam(learning_rate=learning_rate),
-            metrics=['mean_squared_error'],
             run_eagerly=True
         )
-        history = self.model.fit(
-            self.train_X,
-            self.train_Y,
+        print(self.model)
+        history = self.model.fit_generator(
+            generator,
             epochs=epochs,
             callbacks=[cp_callback, early_stopping],
-            batch_size=self.config['PREPROCESS_TRAIN'].getint('BatchSize'),
+            #batch_size=self.config['PREPROCESS_TRAIN'].getint('BatchSize'),
             verbose=1,
-            validation_data=(self.valid_X, self.valid_Y),
+            #validation_data=val_generator,
         )
         self.fitted = True
         self.illustrate_history(history)
         self.model.save(f'model_{self.dt_string}')
         backend.clear_session()
         return history
+
+    def custom_loss(y_actual, y_predicted):
+        print('ok')
+
 
     def illustrate_history(self,
         history: Type[History]) -> None:
@@ -202,21 +182,13 @@ class Compiler():
 
     def predict(self, mode: str) -> list:
         assert self.fitted, 'Model is not fitted.'
-        assert mode in ['training', 'validation', 'evaluation']
-
         if mode == 'training':
-            if self.train_X is None:
-                self.train_X, self.train_Y = self._make_windows(mode='training')
             data = self.train_X
             label = self.train_Y
         elif mode == 'validation':
-            if self.valid_X is None:
-                self.valid_X, self.valid_Y = self._make_windows(mode='validation')
             data = self.valid_X
             label = self.valid_Y
         elif mode == 'evaluation':
-            if self.eval_X is None:
-                self.eval_X, self.eval_Y = self._make_windows(mode='evaluation')
             data = self.eval_X
             label = self.eval_Y
 
@@ -226,7 +198,6 @@ class Compiler():
         predicted_batch = self.model.predict(batch)
         self.predicted_data = True
         return batch, predicted_batch, label_batch
-
 
     def load_model(self, model_path: str) -> None:
         """**This function loads a model from a given path.**
@@ -265,7 +236,81 @@ class Compiler():
         early_stopping = EarlyStopping(
             monitor='val_loss',
             mode='min',
-            verbose=1,
-            patience=patience)
+            patience=patience
+        )
 
         return cp_callback, early_stopping
+
+    def plot_predictions(self, amount, mode: str) -> None:
+        assert mode in ['training', 'validation', 'evaluation']
+        assert amount < self.config['PREPROCESS_TRAIN'].getint('BatchSize')
+
+        batch, predicted_batch, label_batch = self.predict(mode)
+        batch_frame_stacks = self._put_on_frame(batch[:amount])
+        predicted_frame_stacks = self._put_on_frame(predicted_batch[:amount])
+        label_frame_stacks = self._put_on_frame(label_batch[:amount])
+        self._make_animation(
+            amount,
+            mode,
+            batch_frame_stacks,
+            predicted_frame_stacks,
+            label_frame_stacks
+        )
+
+    def _make_animation(
+        self,
+        amount,
+        mode,
+        batch_frame_stacks,
+        predicted_frame_stacks,
+        label_frame_stacks
+        ):
+
+        nrows = amount
+        ncols = 4
+        fig = plt.gcf()
+        fig.set_size_inches(ncols * 4, nrows * 4)
+        fig.patch.set_facecolor('white')
+
+        duration = len(batch_frame_stacks)
+        def _update(batch, predict, label, index):
+            length = len(batch)
+            for k, type_ in enumerate([batch, predict, label]):
+                for i in range(length):
+                    sp = plt.subplot(nrows, ncols, k*length + (i + 1))
+                    plt.imshow(type_[i][:,:,index])
+
+        ani = FuncAnimation(
+            fig,
+            lambda i: _update(
+                    batch_frame_stacks,
+                    predicted_frame_stacks,
+                    label_frame_stacks,
+                    i
+                ),
+            list(range(duration)),
+            init_func=_update(
+                    batch_frame_stacks,
+                    predicted_frame_stacks,
+                    label_frame_stacks,
+                    0
+                )
+        )  
+        writer = PillowWriter(fps=duration)  
+        ani.save(f"output/examples_{mode}_{self.dt_string}.gif", writer=writer) 
+
+
+    def _put_on_frame(self, data):
+        stacks = data.shape[0]
+        frames = data.shape[1]
+
+        frame_size = self.config['DATA'].getint('TargetSize')
+        batch_frame_stacks = []
+        for stack in range(stacks):
+            frame_stack = np.zeros((frame_size, frame_size, frames))
+            for frame in range(frames):
+                x = int(data[stack, frame, 0])
+                y = int(data[stack, frame, 1])
+                frame_stack[x, y, frame] = 1.0
+            batch_frame_stacks.append(frame_stack)
+        return batch_frame_stacks

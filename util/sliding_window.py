@@ -54,6 +54,7 @@ class SlidingWindow:
         self._set_mode_parameters(mode)
         num_sliding_windows = self.time-self.window_size+1
         self.sliding_windows_label = []
+        print(f'Making sliding {mode} label windows.')
         for index in tqdm(range(self.batch_size)):
             for scatterer_index in range(self.scatterer):
                 for time in range(0, num_sliding_windows):
@@ -72,6 +73,7 @@ class SlidingWindow:
         self._set_mode_parameters(mode)
         num_sliding_windows = self.time-self.window_size
         self.sliding_windows = []
+        print(f'Making sliding {mode} windows.')
         for index in tqdm(range(self.batch_size)):
             for scatterer_index in range(self.scatterer):
                 for time in range(0, num_sliding_windows):
@@ -171,14 +173,11 @@ class SlidingWindow:
                             
             X.append(np.array(x))
             Y.append(np.array(y))
-        X = self._pad_organise(X)
-        Y = self._pad_organise(Y)
+        #X = self._pad_organise(X)
+        #Y = self._pad_organise(Y)
+        X = self._cap_values(X)
+        Y = self._cap_values(Y)
         return X, Y
-
-    def _cap_values(self, array):
-        cap = self.config['DATA'].getint('TargetSize')
-        array[(array < 0) | (array > (cap-1))] = -1
-        return array
 
     def _determine_candidate_cap(self, array):
         l = [x.shape[0] for x in array]
@@ -292,6 +291,21 @@ class SlidingWindow:
             new_windows.append(window_)
         return new_windows        
 
+    def _cap_values(self, arr):
+        #array = tf.keras.preprocessing.sequence.pad_sequences(
+        #    array,
+        #   padding='post',
+        #    value=-1
+        #)
+        for array in arr:
+            try:
+                array = array[3][2]
+            except:
+                array = array[3]
+            cap = self.config['DATA'].getint('TargetSize')
+            array[(array < 0) | (array > (cap-1))] = -1
+        return arr
+
     def run(self):
         container_dir = storage.make_storage_folder(
             self.data_folder_path
@@ -302,19 +316,28 @@ class SlidingWindow:
             self.val_tracks,
             self.eval_tracks
         ]
+        data = []
         for i, mode in enumerate(['training', 'validation', 'evaluation']):
             self._slinding_windows(tracks[i], threshold, mode)
             self._slinding_windows_labels(tracks[i], mode)
-            X, Y = self._organize_windows()
-            parquet = gzip.GzipFile(
-                f'{container_dir}/tracks/{mode}/data/X.npy.gz',
-                'w'
-            )
-            np.save(file=parquet, arr=X)
-            parquet.close()
-            parquet = gzip.GzipFile(
-                f'{container_dir}/tracks/{mode}/labels/Y.npy.gz',
-                'w'
-            )
-            np.save(file=parquet, arr=Y)
-            parquet.close()
+            #X, Y = self._organize_windows()
+            X = self.sliding_windows
+            X = self._cap_values(X)
+            data.append(X)
+
+            Y = self.sliding_windows_label
+            Y = self._cap_values(Y)
+            data.append(Y)
+            #parquet = gzip.GzipFile(
+            #    f'{container_dir}/tracks/{mode}/data/X.npy.gz',
+            #    'w'
+            #)
+            #np.save(file=parquet, arr=X)
+            #parquet.close()
+            #parquet = gzip.GzipFile(
+            #    f'{container_dir}/tracks/{mode}/labels/Y.npy.gz',
+            #    'w'
+            #)
+            #np.save(file=parquet, arr=Y)
+            #parquet.close()
+        return data
