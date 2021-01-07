@@ -16,7 +16,6 @@ class Organiser():
         self.data_folder_path = data_folder_path
         self.batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
         self.window_length = self.windows.window_size
-        self.create_data()
 
     def create_data(self):
         data = self.windows.run()
@@ -72,11 +71,3 @@ class Organiser():
                 scat_specific_X = [x for x in frame_specific_X if x[1]==scat]
                 scat_specific_Y = [y for y in frame_specific_Y if y[1]==scat]
                 yield scat_specific_X, scat_specific_Y
-
-    def _make_batch(self, mode):
-        batch = []
-        generator = self.get_priors(mode)
-        for i in range(self.batch_size):
-            X, Y = next(generator)
-            batch.append(X)
-        yield batch

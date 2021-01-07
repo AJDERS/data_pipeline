@@ -6,21 +6,24 @@ from tensorflow.keras.layers import Dropout, Dense, LSTMCell, RNN, Masking, Flat
 from tensorflow.keras import Model
 
 
+
 class RNNStepPredictor(Model):
-    def __init__(self, generator, config_path):
+    def __init__(self, sliding_windows, config_path):
         super().__init__()
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
+        self.sliding_windows = sliding_windows # Should be instance of `SlidingWindow`
         self.activation = self.config['RNN'].get('Activation')
         self.lstm_units = self.config['RNN'].getint('LSTMUnits')
         self.fc_units = self.config['RNN'].getint('FCUnits')
         self.batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
+        num_scatter_tmp = self.config['DATA'].get('NumScatterTrain')
+        self.num_scatterer =  [int(y) for y in num_scatter_tmp.split(',')][0]
         self.prior = self.config['RNN'].getint('Prior')
         self.future = self.config['RNN'].getint('Future')
         self.droprate = self.config['RNN'].getfloat('DropOutRate')
         self.window_length = self.prior + self.future
         self.cost_weight = self.config['RNN'].getfloat('CostWeight')
-        self.generator = generator
         self._make_lstm()
 
     def _make_lstm(self):
@@ -51,7 +54,15 @@ class RNNStepPredictor(Model):
     def _get_extensions(self, batch, time):
         extensions = []
         for i in range(self.batch_size):
-            extensions.append([self._redo(x[3][2])[-1,:] for x in batch[i] if x[2]==time])
+            batch_list = []
+            time_features = [x for x in batch[i] if x[2]==time]
+            for s in range(self.num_scatterer):
+                scat_sorted_time_features = []
+                for feature in time_features:
+                    if feature[1] == s:
+                        scat_sorted_time_features.append(feature)
+                batch_list.append([self._redo(x[3][2])[-1,:] for x in scat_sorted_time_features])
+            extensions.append(batch_list)
         return extensions
 
     def _warmup(self, start_features):
@@ -93,9 +104,11 @@ class RNNStepPredictor(Model):
         return np.transpose(np.squeeze(data), (1,0))
 
     def _get_start_features(self, batch):
-        start_features = np.zeros((self.batch_size, self.window_length, 2))
+        start_features = np.zeros((self.batch_size, self.num_scatterer, self.window_length, 2))
         for i in range(self.batch_size):
-            start_features[i, :, :] = self._redo(batch[i][0][3][2])
+            time_zero_features = [x for x in batch[i] if x[2]==0]
+            for s in range(self.num_scatterer):
+                start_features[i, s, :, :] = self._redo(time_zero_features[s][3][2])
         return start_features
 
     def _fully_connected(self, tensor, order):
@@ -144,13 +157,15 @@ class RNNStepPredictor(Model):
 
     def call(self, inputs):
         """
-        Given a batch consisting of a list of tuples containing:
-        (index, scatterer_index, time, (previous_candidate, candidate, window))
+        Given a batch consisting of a tensor of shape:
+        (batch_size, num_scatterer, coords, time, channel)
 
-        for each scatterer the first `window_length` coordinates are found, via
-        `_get_start_features`. For each of these initial features their
-        possible extensions, i.e. the possible `window_length + 1` coordinates
-        are found via `_get_extensions`.
+        a list of tuples containing:
+        (index, scatterer_index, time, (previous_candidate, candidate, window))
+        is produced. For each scatterer the first `window_length` coordinates 
+        are found, via `_get_start_features`. For each of these initial
+        features their possible extensions, i.e. the possible 
+        `window_length + 1` coordinates are found via `_get_extensions`.
 
         The initial features are passed to a LSTM-layer in `_warmup` which
         sets initial states, does warm up of LSTM with initial features and
@@ -172,80 +187,103 @@ class RNNStepPredictor(Model):
         the prediction is feed to the LSTM-layer which produces a new
         prediction. This prediction and the new possible extensions are found
         are used as input to the next time step. The flow is repeated
-        `self.futures` times.
+        `self.window_length` times.
         """
-        # input: (index, scatterer_index, time, (previous_candidate, candidate, window))
-
-        # (batch_size, future, coords)
-        predictions = np.zeros((self.batch_size, self.future, 2))
-        association_probabilities = np.zeros((self.batch_size, self.future, 2))
-        association_costs = np.zeros((self.batch_size, self.future, 2))
-
-        # Make batch !!!!!!!!!!
-        #batch = self._make_batch()
+        # Start
+        # inputs: (batch_size, num_scatterer, coords, time, channel)
         
+        # Make sliding windows.
+        window_data = []
+        for i in range(inputs.shape[0]):
+            x = self.sliding_windows.run(tf.expand_dims(inputs[i], axis=0))
+            window_data.append(x)
+
+        # window_data: [(index, scatterer_index, time, (previous_candidate, candidate, window))]
+
+        # Preallocate output tensors.
+        # (batch_size, future, coords)
+        output = np.zeros((3, self.batch_size, self.num_scatterer, self.window_length, 2))
+        predictions = np.zeros((self.batch_size, self.num_scatterer, self.window_length, 2))
+        association_probabilities = np.zeros((self.batch_size, self.num_scatterer, self.window_length, 2))
+        association_costs = np.zeros((self.batch_size, self.num_scatterer, self.window_length, 2))
+
         # Get start features, i.e. first window from each scatter
-        start_features = self._get_start_features(inputs)
+        start_features = self._get_start_features(window_data)
         # start_features: (batch_size, window_size, coords)
 
-        time = 0
-        # Get extensions, i.e. coords for each candidate at a specific time
-        extensions = self._get_extensions(inputs, time)
-        # extensions: list[(number_of_candidates, coords)]
+        for s in range(self.num_scatterer):
+            # Initialize LSTM cell, this is time 0.
+            lstm_predictions, lstm_outputs, state = self._warmup(start_features[:,s])
+            # lstm_predictions: (batch_size, window_size, coords)
+            # states: list[(batch_size, units), (batch_size, units)]
+            # lstm_outputs: (batch_size, window_size, lstm_units)
 
-        # Initialize LSTM cell, this is time 0.
-        lstm_predictions, lstm_outputs, state = self._warmup(start_features)
-        # lstm_predictions: (batch_size, window_size, coords)
-        # states: list[(batch_size, units), (batch_size, units)]
-        # lstm_outputs: (batch_size, window_size, lstm_units)
+            time = 1
+            # Get extensions, i.e. coords for each candidate at a specific time
+            extensions = self._get_extensions(window_data, time)
+            # extensions: list[list[(number_of_candidates, coords)]]
+            # Outer list is len == batch_size, inner list is len == num_scatterer
 
-        flat_lstm_outputs = Flatten()(lstm_outputs)
-        while time < self.future:
-            for batch_index, extension in enumerate(extensions):
-                cost_values = []
-                distance_values = []
-                prob_values = []
-                for candidate in extension:
-                    # Get distances from candidate to LSTM predictions
-                    dist_to_predicted_coord = self._dist_candidate_to_lstm(
-                        candidate,
-                        lstm_predictions,
-                        batch_index
-                    )
-                    distance_values.append(dist_to_predicted_coord)
 
-                    # Predict association cost and probability
-                    candidate_tensor = self._fully_connected(candidate, 'first')
-                    candidate_tensor = self._fully_connected(candidate_tensor, 'second')
-                    flat_candidate_tensor = Flatten()(candidate_tensor)
-                    concat_tensor = Concatenate()(
-                        [
-                            tf.reshape(flat_lstm_outputs[batch_index], (1, self.window_length * self.lstm_units)),
-                            flat_candidate_tensor
-                        ]
-                    )
-                    evaluation_tensor = self._fully_connected(concat_tensor, 'after_concat')
-                    
-                    association_prop = Dense(2, activation='softmax')(evaluation_tensor)
-                    prob_values.append(association_prop)
+            # Note time index starts at 0, while extensions start from time 1, hence `-1` or `+1`
+            flat_lstm_outputs = Flatten()(lstm_outputs)
+            while time < self.window_length + 1:
+                for batch_index, extension in enumerate(extensions):
+                    cost_values = []
+                    distance_values = []
+                    prob_values = []
+                    for candidate in extension[s]:
+                        # Get distances from candidate to LSTM predictions
+                        dist_to_predicted_coord = self._dist_candidate_to_lstm(
+                            candidate,
+                            lstm_predictions,
+                            batch_index
+                        )
+                        distance_values.append(dist_to_predicted_coord)
 
-                    association_cost = Dense(1, activation=None)(evaluation_tensor)
-                    cost_values.append(association_cost)
+                        # Predict association cost and probability
+                        candidate_tensor = self._fully_connected(candidate, 'first')
+                        candidate_tensor = self._fully_connected(candidate_tensor, 'second')
+                        flat_candidate_tensor = Flatten()(candidate_tensor)
+                        concat_tensor = Concatenate()(
+                            [
+                                tf.reshape(flat_lstm_outputs[batch_index], (1, self.window_length * self.lstm_units)),
+                                flat_candidate_tensor
+                            ]
+                        )
+                        evaluation_tensor = self._fully_connected(concat_tensor, 'after_concat')
+                        
+                        association_prop = Dense(2, activation='softmax')(evaluation_tensor)
+                        prob_values.append(association_prop)
 
-                # Get LSTM predicted candidate.
-                distance_values = np.array(distance_values)
-                min_dist_index = np.where(distance_values==distance_values.min())[0][0]
+                        association_cost = Dense(1, activation=None)(evaluation_tensor)
+                        cost_values.append(association_cost)
 
-                # Store prediction, cost, prob
-                predictions[batch_index, time, :] = extension[min_dist_index]
-                association_costs[batch_index, time, :] = cost_values[min_dist_index]
-                association_probabilities[batch_index, time, :] = prob_values[min_dist_index]
-            # Setup for next time step
-            extensions = self._get_extensions(inputs, time)
-            lstm_outputs, state = self.lstm_cell(predictions[:,time], states=state)
-            x = Dropout(rate=self.droprate, dtype='float64')(lstm_outputs)
-            lstm_predictions = Dense(units=2, activation=self.activation)(x)
-            time += 1
-        return predictions, association_probabilities, association_costs
+                    # Get LSTM predicted candidate.
+                    distance_values = np.array(distance_values)
+                    min_dist_index = np.where(distance_values==distance_values.min())[0][0]
 
+                    # Store prediction, cost, prob
+                    # Note time index starts at 0, while extensions start from time 1, hence `-1`
+                    predictions[batch_index, s, time-1, :] = extension[s][min_dist_index]
+                    association_costs[batch_index, s, time-1, :] = cost_values[min_dist_index]
+                    association_probabilities[batch_index, s, time-1, :] = prob_values[min_dist_index]
+
+                # Setup for next time step
+                time += 1
+                if not time == self.window_length+1:
+                    extensions = self._get_extensions(window_data, time)
+                    lstm_outputs, state = self.lstm_cell(predictions[:, s, time-1], states=state)
+                    x = Dropout(rate=self.droprate, dtype='float64')(lstm_outputs)
+                    lstm_predictions = Dense(units=2, activation=self.activation)(x)
+                
+
+            # Output single value to fit with custom loss function API.
+            output[0,:] = predictions
+            output[1,:] = association_costs
+            output[2,:] = association_probabilities
+        return output
+
+
+# FIX: MASKING AND CAPPING
 

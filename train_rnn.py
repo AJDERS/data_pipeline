@@ -13,6 +13,8 @@ from datetime import datetime
 from models.feedback import Feedback
 from util import clean_storage_folder as cleaner
 from util.organiser import Organiser
+from util.sliding_window import SlidingWindow
+from util.generator import DataGenerator
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam
 from tensorflow.python.keras import backend
@@ -28,11 +30,13 @@ class Compiler():
         self.config_path = config_path
         self.data_folder_path = data_folder_path
         self.organiser = Organiser(data_folder_path, config_path)
+        self.sliding_windows = self.organiser.windows
         self._set_runtime_variables()
         self._allocate_memory()
         self._reset_seeds()
         self._make_logs()
         self._load_data()
+        self._make_generators()
         self._set_dtype()
 
     def _set_dtype(self):
@@ -87,14 +91,13 @@ class Compiler():
                     level=logging.INFO
         )
 
-    def build_model(self, generator) -> None:
+    def build_model(self) -> None:
         """
         **This method builds a model if none is loaded.**
 
         The build model is stored in ``self.model``, unless 
         ``self.loaded_model == True``, see note of ``Model.load_model``.
         """
-
         model_name = self.config['RNN'].get('ModelName')
         tmp = model_name.split('.')
         module = '.'.join(tmp[:2])
@@ -109,22 +112,33 @@ class Compiler():
                 self.model = getattr(model, class_)
             else:
                 class_ = getattr(model, class_)
-                self.model = class_(
-                    generator,
-                    self.config_path
-                )
+                self.model = class_(self.sliding_windows, self.config_path)
         else:
             print('Model is already loaded.')
 
     def _load_data(self):
-        pass
+        self.train = self.sliding_windows.train_tracks
+        self.valid = self.sliding_windows.val_tracks
+        self.eval = self.sliding_windows.eval_tracks
+
+    def _make_generators(self):
+        modes = ['training', 'validation', 'evaluation']
+        generators = []
+        for mode in modes:
+            if mode == 'training':
+                X = self.train
+                Y = self.train
+            elif mode == 'validation':
+                X = self.valid
+                Y = self.valid
+            else:
+                X = self.eval
+                Y = self.eval
+            generators.append(DataGenerator(X, Y, mode, self.config).flow())
+        self.train_gen, self.val_gen, self.eval_gen = generators
 
     def compile_and_fit(self):
-        generator = self.organiser._make_batch('training')
-        val_generator = self.organiser._make_batch('validation')
-        self.build_model(
-            generator
-        )
+        self.build_model()
         #self.model.summary()
         epochs = self.config['TRAINING'].getint('Epochs')
         learning_rate = self.config['TRAINING'].getfloat('LearningRate')
@@ -135,14 +149,13 @@ class Compiler():
             optimizer=Adam(learning_rate=learning_rate),
             run_eagerly=True
         )
-        print(self.model)
-        history = self.model.fit_generator(
-            generator,
+        history = self.model.fit(
+            self.train_gen,
             epochs=epochs,
             callbacks=[cp_callback, early_stopping],
-            #batch_size=self.config['PREPROCESS_TRAIN'].getint('BatchSize'),
-            verbose=1,
-            #validation_data=val_generator,
+            batch_size=self.config['PREPROCESS_TRAIN'].getint('BatchSize'),
+            verbose=2,
+            validation_data=self.val_gen,
         )
         self.fitted = True
         self.illustrate_history(history)
@@ -150,8 +163,13 @@ class Compiler():
         backend.clear_session()
         return history
 
-    def custom_loss(y_actual, y_predicted):
-        print('ok')
+    def custom_loss(self, y_actual, y_predicted):
+        window_data_label = []
+        for i in range(y_actual.shape[0]):
+            y = self.sliding_windows.run(tf.expand_dims(y_actual[i], axis=0), labels=True)
+            window_data_label.append(y)
+        window_data_label
+        print(y_predicted)
 
 
     def illustrate_history(self,
