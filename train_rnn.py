@@ -7,19 +7,21 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 
+from tqdm import tqdm
 from tensorflow import keras
 from typing import Type
 from datetime import datetime
 from models.feedback import Feedback
 from util import clean_storage_folder as cleaner
-from util.organiser import Organiser
-from util.sliding_window import SlidingWindow
+from util.loader_mat import Loader
 from util.generator import DataGenerator
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.optimizers import Adam
 from tensorflow.python.keras import backend
 from tensorflow.keras.callbacks import History
 from matplotlib.animation import FuncAnimation, PillowWriter
+from data.generate_candidate_tracks import CandidateTrackGenerator
+
 
 
 class Compiler():
@@ -29,13 +31,16 @@ class Compiler():
         self.config.read(config_path)
         self.config_path = config_path
         self.data_folder_path = data_folder_path
-        self.organiser = Organiser(data_folder_path, config_path)
-        self.sliding_windows = self.organiser.windows
+        self.train_path = os.path.join(self.data_folder_path, 'training')
+        self.valid_path = os.path.join(self.data_folder_path, 'validation')
+        self.eval_path = os.path.join(self.data_folder_path, 'evaluation')
+        self.loader = Loader()
+        self.candidate_track_generator = CandidateTrackGenerator(config_path)
         self._set_runtime_variables()
         self._allocate_memory()
         self._reset_seeds()
         self._make_logs()
-        self._load_data()
+        self._load()
         self._make_generators()
         self._set_dtype()
 
@@ -43,6 +48,14 @@ class Compiler():
         tf.keras.backend.set_floatx('float64')
 
     def _set_runtime_variables(self):
+        self.batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
+        num_scatter_tmp = self.config['DATA'].get('NumScatterTrain')
+        self.num_scat =  [int(y) for y in num_scatter_tmp.split(',')][0]
+        self.max_cand = self.config['RNN'].getint('MaximalCandidate')
+        self.time = self.config['DATA'].getint('MovementDuration')
+        self.num_data_train = self.config['DATA'].getint('NumDataTrain')
+        self.num_data_val = self.config['DATA'].getint('NumDataValid')
+        self.warm_up_length = self.config['RNN'].getint('WarmUpLength')
         self.train_X = None
         self.train_Y = None
         self.valid_X = None
@@ -112,64 +125,143 @@ class Compiler():
                 self.model = getattr(model, class_)
             else:
                 class_ = getattr(model, class_)
-                self.model = class_(self.sliding_windows, self.config_path)
+                self.model = class_(self.config_path)
         else:
             print('Model is already loaded.')
 
-    def _load_data(self):
-        self.train = self.sliding_windows.train_tracks
-        self.valid = self.sliding_windows.val_tracks
-        self.eval = self.sliding_windows.eval_tracks
+    def _load(self):
+        self.train_tracks = self.loader.load_array_folder(
+            source_path = os.path.join(self.train_path, 'tracks'),
+            type_of_data = 'tracks',
+        )
+        self.eval_tracks = self.loader.load_array_folder(
+            source_path = os.path.join(self.eval_path, 'tracks'),
+            type_of_data = 'tracks',
+        )
+        self.val_tracks = self.loader.load_array_folder(
+            source_path = os.path.join(self.valid_path, 'tracks'),
+            type_of_data = 'tracks',
+        )
 
     def _make_generators(self):
         modes = ['training', 'validation', 'evaluation']
         generators = []
         for mode in modes:
             if mode == 'training':
-                X = self.train
-                Y = self.train
+                X = self.train_tracks
+                Y = self.train_tracks
             elif mode == 'validation':
-                X = self.valid
-                Y = self.valid
+                X = self.val_tracks
+                Y = self.val_tracks
             else:
-                X = self.eval
-                Y = self.eval
+                X = self.eval_tracks
+                Y = self.eval_tracks
             generators.append(DataGenerator(X, Y, mode, self.config).flow())
         self.train_gen, self.val_gen, self.eval_gen = generators
 
-    def compile_and_fit(self):
+    def train_step(self, x, y):
+        # Make candidate tracks.
+        # x_batch: (batch_size, num_scatterer, coords, time, channel)
+        window_data = self.candidate_track_generator.make_candidate_tracks(x)
+        Y = tf.squeeze(tf.transpose(y, (0, 1, 3, 2, 4)))
+        self.X = self._make_tensors(window_data)
+        with tf.GradientTape() as tape:
+            tape.watch(self.X)
+            logits = self.model.call(self.X)
+            loss = self.custom_loss(Y, logits)
+        grads = tape.gradient(loss, self.model.trainable_weights)
+        self.optimizer.apply_gradients(zip(grads, self.model.trainable_weights))
+        return loss
+
+    def test_step(self, x, y):
+        # Make candidate tracks.
+        # x_batch: (batch_size, num_scatterer, coords, time, channel)
+        window_data = self.candidate_track_generator.make_candidate_tracks(x)
+        Y = tf.squeeze(tf.transpose(y, (0, 1, 3, 2, 4)))
+        self.X = self._make_tensors(window_data)
+        logits = self.model.call(self.X, training=False)
+        loss = self.custom_loss(Y, logits)
+        return loss
+
+    def eval_step(self, x, y):
+        # Make candidate tracks.
+        # x_batch: (batch_size, num_scatterer, coords, time, channel)
+        window_data = self.candidate_track_generator.make_candidate_tracks(x)
+        Y = tf.squeeze(tf.transpose(y, (0, 1, 3, 2, 4)))
+        self.X = self._make_tensors(window_data)
+        logits = self.model.call(self.X, training=False)
+        loss = self.custom_loss(Y, logits)
+        reshaped_logits = self._reshape(logits)
+        return loss, reshaped_logits, Y
+
+    def training_loop(self):
         self.build_model()
-        #self.model.summary()
         epochs = self.config['TRAINING'].getint('Epochs')
         learning_rate = self.config['TRAINING'].getfloat('LearningRate')
+        self.optimizer = Adam(learning_rate=learning_rate)
+        history = {}
+        history['loss'] = []
+        history['val_loss'] = []
+        for epoch in range(epochs):
+            print('Start of epoch: ' + str(epoch))
+            steps_per_epoch = int(self.num_data_train / self.batch_size)
+            for step in tqdm(range(steps_per_epoch)):
+                x_batch, y_batch = next(self.train_gen)
+                loss = self.train_step(x_batch, y_batch)
+            history['loss'].append(loss)
+            print('Loss at end of epoch: ' + str(loss))
 
-        cp_callback, early_stopping = self._checkpoints()
-        self.model.compile(
-            loss=self.custom_loss,
-            optimizer=Adam(learning_rate=learning_rate),
-            run_eagerly=True
-        )
-        history = self.model.fit(
-            self.train_gen,
-            epochs=epochs,
-            callbacks=[cp_callback, early_stopping],
-            batch_size=self.config['PREPROCESS_TRAIN'].getint('BatchSize'),
-            verbose=2,
-            validation_data=self.val_gen,
-        )
-        self.fitted = True
-        self.illustrate_history(history)
+            steps_per_epoch_val= int(self.num_data_val / self.batch_size)
+            for step in tqdm(range(steps_per_epoch_val)):
+                x_batch, y_batch = next(self.val_gen)
+                loss = self.test_step(x_batch, y_batch)
+            history['val_loss'].append(loss)
+            print('Validation loss at end of epoch: ' + str(loss))
         self.model.save(f'model_{self.dt_string}')
-        backend.clear_session()
         return history
 
+
+    def evaluate(self):
+        x_batch, y_batch = next(self.eval_gen)
+        return self.eval_step(x_batch, y_batch)
+
+
+
+    def _make_tensors(self, window_data):
+        X = np.full((self.batch_size * self.num_scat * self.max_cand, self.time, 2), -1.0)
+        for b in range(self.batch_size):
+            for s in range(self.num_scat):
+                for c in range(len(window_data[b,s])):
+                    X[b+s+c] = window_data[b,s][c]
+        X = tf.convert_to_tensor(X)
+        return X
+
+    def _reshape(self, y):
+        y = tf.split(y, self.max_cand, axis=0)
+        y = tf.stack(y, axis=0)
+        y = tf.split(y, self.num_scat, axis=1)
+        y = tf.stack(y, axis=2)
+        return y
+
     def custom_loss(self, y_actual, y_predicted):
-        window_data_label = []
-        for i in range(y_actual.shape[0]):
-            y = self.sliding_windows.run(tf.expand_dims(y_actual[i], axis=0), labels=True)
-            window_data_label.append(y)
-        window_data_label
-        print(y_predicted)
+        inputs = self.X
+        y_actual = y_actual[:,:,:-self.warm_up_length]
+        y_predicted = self._reshape(y_predicted)
+        inputs = self._reshape(inputs)
+
+        null_tensor = tf.convert_to_tensor(np.full((self.batch_size, self.num_scat, self.time, 2), -1.0))
+        init = tf.convert_to_tensor(np.zeros((self.batch_size, self.num_scat, self.time-self.warm_up_length)))
+        for i, y in enumerate(y_predicted):
+            if not tf.reduce_all(tf.equal(inputs[i], null_tensor)):
+                init += tf.losses.mean_squared_error(y, y_actual)
+        loss = tf.reduce_sum(init)
+        return loss
+
+    def compile_and_fit(self):
+        history = self.training_loop()
+        self.illustrate_history(history)
+        backend.clear_session()
+        return history
 
 
     def illustrate_history(self,

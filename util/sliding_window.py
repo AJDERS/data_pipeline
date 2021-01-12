@@ -23,19 +23,7 @@ class SlidingWindow:
         self.eval_path = os.path.join(self.data_folder_path, 'evaluation')
         self._load()
 
-    def _load(self):
-        self.train_tracks = self.loader.load_array_folder(
-            source_path = os.path.join(self.train_path, 'tracks'),
-            type_of_data = 'tracks',
-        )
-        self.eval_tracks = self.loader.load_array_folder(
-            source_path = os.path.join(self.eval_path, 'tracks'),
-            type_of_data = 'tracks',
-        )
-        self.val_tracks = self.loader.load_array_folder(
-            source_path = os.path.join(self.valid_path, 'tracks'),
-            type_of_data = 'tracks',
-        )
+
 
     def _set_mode_parameters(self, tracks):
         self.batch_size = tracks.shape[0]
