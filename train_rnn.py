@@ -249,12 +249,18 @@ class Compiler():
         y_predicted = self._reshape(y_predicted)
         inputs = self._reshape(inputs)
 
-        null_tensor = tf.convert_to_tensor(np.full((self.batch_size, self.num_scat, self.time, 2), -1.0))
-        init = tf.convert_to_tensor(np.zeros((self.batch_size, self.num_scat, self.time-self.warm_up_length)))
+        null_tensor = tf.convert_to_tensor(np.full((self.time, 2), -1.0))
+        init = 0.0
+        num = 0.0
         for i, y in enumerate(y_predicted):
-            if not tf.reduce_all(tf.equal(inputs[i], null_tensor)):
-                init += tf.losses.mean_squared_error(y, y_actual)
-        loss = tf.reduce_sum(init)
+            for b in range(self.batch_size):
+                for s in range(self.num_scat):        
+                    if not tf.reduce_all(tf.equal(inputs[i][b,s], null_tensor)):
+                        init += tf.losses.mean_squared_error(y[b,s], y_actual[b,s])
+                        num += 1.0
+        num = tf.constant(1/num, dtype='float64')
+        loss_sum = tf.reduce_sum(init)
+        loss = tf.multiply(num, loss_sum)
         return loss
 
     def compile_and_fit(self):
