@@ -16,6 +16,7 @@ class CandidateTrackGenerator:
         self.threshold = self.config['RNN'].getint('CandidateThreshold')
         self.target_size = self.config['DATA'].getint('TargetSize')
         self.max_cand = self.config['RNN'].getint('MaximalCandidate')
+        self.cap_values = self.config['RNN'].getboolean('CapValues')
         #self.batch_size = self.config['PREPROCESS_TRAIN'].getint('BatchSize')
 
     def _set_mode_parameters(self, tracks):
@@ -35,19 +36,20 @@ class CandidateTrackGenerator:
         for index, dataset in enumerate(data):
             candidate_tracks = self._make_candidate_tracks(index, candidate_tracks, dataset)
         
-        candidate_tracks = self._cap_values(candidate_tracks)
+        candidate_tracks = self._cap_normalize_values(candidate_tracks)
         return candidate_tracks
 
-    def _cap_values(self, tracks):
+    def _cap_normalize_values(self, tracks):
         multiplex_alts = np.full((self.time,self.coords), -1.0)
         for b in range(self.batch_size):
             for s in range(self.scatterer):
                 candidates = tracks[b,s]
-                for i, candidate in enumerate(candidates):
-                    larger_than_zero = tf.greater_equal(candidate, tf.constant([0.0]))
-                    smaller_than_thres = tf.less_equal(candidate, tf.constant([self.target_size]))
-                    candidates[i] = tf.where(larger_than_zero, candidates[i], multiplex_alts)
-                    candidates[i] = tf.where(smaller_than_thres, candidates[i], multiplex_alts)
+                if self.cap_values:
+                    for i, candidate in enumerate(candidates):
+                        larger_than_zero = tf.greater_equal(candidate, tf.constant([0.0]))
+                        smaller_than_thres = tf.less_equal(candidate, tf.constant([self.target_size]))
+                        candidates[i] = tf.where(larger_than_zero, candidates[i], multiplex_alts)
+                        candidates[i] = tf.where(smaller_than_thres, candidates[i], multiplex_alts)
                 tracks[b,s] = candidates[:self.max_cand]
         return tracks
 
