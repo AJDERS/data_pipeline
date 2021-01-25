@@ -1,5 +1,6 @@
 import os
 import gzip
+import random
 import configparser
 import numpy as np
 import tensorflow as tf
@@ -36,8 +37,17 @@ class CandidateTrackGenerator:
         for index, dataset in enumerate(data):
             candidate_tracks = self._make_candidate_tracks(index, candidate_tracks, dataset)
         
-        candidate_tracks = self._cap_normalize_values(candidate_tracks)
+        #candidate_tracks = self._cap_normalize_values(candidate_tracks)
+        candidate_tracks = self._shuffle_candidates(candidate_tracks)
         return candidate_tracks
+
+    def _shuffle_candidates(self, candidate_tracks):
+        for b in range(self.batch_size):
+            for s in range(self.scatterer):
+                candidates = candidate_tracks[b,s]
+                candidate_tracks[b,s] = random.sample(candidates, len(candidates))
+        return candidate_tracks
+
 
     def _cap_normalize_values(self, tracks):
         multiplex_alts = np.full((self.time,self.coords), -1.0)
@@ -92,7 +102,7 @@ class CandidateTrackGenerator:
                         for suitable_coord in suitable_coords:
                             current_coordinates[k][time_index + 1,:] = suitable_coord
                             new_current_coordinates.append(np.copy(current_coordinates[k]))
-                    current_coordinates = new_current_coordinates
+                    current_coordinates = new_current_coordinates[:self.max_cand]
             candidate_tracks[index, scat_index] = current_coordinates
         return candidate_tracks
 
