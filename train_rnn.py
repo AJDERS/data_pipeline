@@ -353,11 +353,12 @@ class Compiler():
         if epoch+1 % 50 == 0:
             self.evaluate(epoch=epoch)
         if not self.patience_decay:
-            if (epoch+1) % self.lr_decay_time == 0:
-                old_lr = self.learning_rate
-                self.learning_rate *= self.lr_decay_rate
-                self.optimizer.lr.assign(self.learning_rate)
-                print(f'Updated learning rate from {old_lr} to {self.learning_rate}.')
+            if self.lr_decay_time != 0:
+                if (epoch+1) % self.lr_decay_time == 0:
+                    old_lr = self.learning_rate
+                    self.learning_rate *= self.lr_decay_rate
+                    self.optimizer.lr.assign(self.learning_rate)
+                    print(f'Updated learning rate from {old_lr} to {self.learning_rate}.')
         try:
             min(self.history['val_loss'])
         except ValueError:
