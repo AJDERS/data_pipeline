@@ -1,0 +1,8 @@
+TRAINING:Optimizer:Adam,Adadelta
+TRAINING:LearningRate:1.0,0.5
+TRAINING:LearningRateDecayTime:0,25
+TRAINING:LearningRateDecayRate:0.8,0.5
+TRAINING:Epochs:50
+RNN:WarmUpLength:5,10
+RNN:LSTMUnits:1024,2048,4096
+RNN:HiddenActivation:relu,lrelu
