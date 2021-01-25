@@ -14,7 +14,7 @@ class Feedback(Model):
         self.hidden_activation = self.config['RNN'].get('HiddenActivation')
         if self.hidden_activation == 'None':
             self.hidden_activation = None
-        if self.hidden_activation == 'LeakyRelu':
+        if self.hidden_activation == 'lrelu':
             self.hidden_activation = self.my_leaky_relu
         self.lstm_activation = self.config['RNN'].get('LSTMPredictionActivation')
         if self.lstm_activation == 'None':
