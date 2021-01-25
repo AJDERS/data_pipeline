@@ -4,6 +4,7 @@ import logging
 import importlib
 import configparser
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from shutil import copyfile
@@ -33,6 +34,7 @@ class Compiler():
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
         self.config_path = config_path
+        self.config_name = self.config_path.split('/')[-1].split('.')[0]
         self.data_folder_path = data_folder_path
         self.train_path = os.path.join(self.data_folder_path, 'training')
         self.valid_path = os.path.join(self.data_folder_path, 'validation')
@@ -109,10 +111,10 @@ class Compiler():
     def _make_logs(self):
         now = datetime.now()
         self.dt_string = now.strftime("%Y%m%d-%H%M%S")
-        os.mkdir(f'output/rnn_checkpoints/model_{self.dt_string}')
-        copyfile('config/config.ini', f'output/rnn_checkpoints/model_{self.dt_string}/config.ini')
+        os.mkdir(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}')
+        copyfile(self.config_path, f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/{self.config_name}.ini')
         logging.basicConfig(
-                    filename=f'output/rnn_checkpoints/model_{self.dt_string}/model_{self.dt_string}.log',
+                    filename=f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.log',
                     level=logging.INFO
         )
 
@@ -243,7 +245,7 @@ class Compiler():
         if self.optimizer == 'Adadelta':
             self.optimizer = Adadelta(learning_rate=self.learning_rate)
         else:
-            self.optimizer = Adam(learning_rate=self.learning_rate)
+            self.optimizer = Adam(learning_rate=self.learning_rate/100)
         self.history = {}
         self.history['loss'] = []
         self.history['val_loss'] = []
@@ -360,13 +362,13 @@ class Compiler():
             min(self.history['val_loss'])
         except ValueError:
             if self.with_checkpoints:
-                self.model.save_weights(f'output/rnn_checkpoints/model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
+                self.model.save_weights(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
             self.patience = 0
             return True
 
         if loss < min(self.history['val_loss']):
             if self.with_checkpoints:
-                self.model.save_weights(f'output/rnn_checkpoints/model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
+                self.model.save_weights(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
             self.patience = 0
             return True
         elif self.patience > self.patience_thres:
@@ -410,7 +412,7 @@ class Compiler():
             plt.ylabel(f'{key}')
             plt.xlabel('epoch')
             plt.legend(['train', 'test'], loc='upper left')
-            plt.savefig(f'output/rnn_checkpoints/model_{self.dt_string}/{key}_{self.dt_string}.png')
+            plt.savefig(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/{key}_{self.dt_string}.png')
 
     def _in_frame(self, coords):
         bools = []
@@ -483,7 +485,7 @@ class Compiler():
             init_func=_update(chosen_candidates, predicted_candidates, y_actual, 0)
         )  
         writer = PillowWriter(fps=self.time)
-        ani.save(f"output/rnn_checkpoints/model_{self.dt_string}/selection_{self.dt_string}_{epoch}.gif", writer=writer) 
+        ani.save(f"output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/selection_{self.dt_string}_{epoch}.gif", writer=writer) 
 
     def _pick_candidates(self, predictions, candidate_cost, candidate_prob, inputs_, y_actual, epoch=None):
         chosen_candidates = np.full(
@@ -553,7 +555,9 @@ class Compiler():
         
     def compile_and_fit(self):
         history = self.training_loop()
-        self.model.save_weights(f'output/rnn_checkpoints/model_{self.dt_string}/model_{self.dt_string}.h5')
+        df = pd.DataFrame.from_dict(history)
+        df.to_csv(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/history_{self.dt_string}.csv')
+        self.model.save_weights(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.h5')
         backend.clear_session()
         self.illustrate_history(history)
         return history
