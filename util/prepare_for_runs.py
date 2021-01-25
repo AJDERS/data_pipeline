@@ -1,11 +1,11 @@
 import os
-from .util import clean_storage_folder
-from .data.generate_frame import FrameGenerator as FG
-from .config.config_generator import ConfigGenerator
+from util.clean_storage_folder import clean_storage
+from data.generate_frame import FrameGenerator as FG
+from config.config_generator import ConfigGenerator
 
 def main():
     # Clean storage
-    clean_storage_folder.clean_storage('storage')
+    clean_storage('storage')
     fg = FG('config/default_config.ini', 'storage')
     fg.run()
     
