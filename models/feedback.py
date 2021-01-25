@@ -2,6 +2,7 @@ import configparser
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
+from util.reshape import _reshape
 from tensorflow.keras.layers import Dropout, Dense, LSTMCell, RNN, Masking, Flatten, Concatenate, Input
 from tensorflow.keras import Model
 
@@ -13,6 +14,8 @@ class Feedback(Model):
         self.hidden_activation = self.config['RNN'].get('HiddenActivation')
         if self.hidden_activation == 'None':
             self.hidden_activation = None
+        if self.hidden_activation == 'LeakyRelu':
+            self.hidden_activation = self.my_leaky_relu
         self.lstm_activation = self.config['RNN'].get('LSTMPredictionActivation')
         if self.lstm_activation == 'None':
             self.lstm_activation = None
@@ -25,6 +28,7 @@ class Feedback(Model):
         self.droprate = self.config['RNN'].getfloat('DropOutRate')
         self.time = self.config['DATA'].getint('MovementDuration')
         self.cost_weight = self.config['RNN'].getfloat('CostWeight')
+        self.max_cand = self.config['RNN'].getint('MaximalCandidate')
         self._make_layers()
 
     def _make_layers(self):
@@ -33,22 +37,76 @@ class Feedback(Model):
         # Also wrap the LSTMCell in an RNN to simplify the `warmup` method.
         self.lstm_rnn = RNN(self.lstm_cell, return_state=True)
         self.drop_warm = Dropout(self.droprate)
-        self.dense_warm = Dense(2, activation=self.lstm_activation)
+        self.dense_warm = Dense(2*self.num_scatterer*self.max_cand, activation=self.lstm_activation)
         self.drop_candidate = Dropout(self.droprate)
         self.dense_candidate = Dense(self.lstm_units, activation=self.hidden_activation)
         self.flatten = Flatten()
         self.concat = Concatenate(axis=1)
         self.drop_concat = Dropout(self.droprate)
         self.dense_concat = Dense(self.fc_units, activation=self.hidden_activation)
-        self.dense_cost = Dense(1, activation=None, name='cost')
-        self.dense_prob = Dense(2, activation='sigmoid')
-        
+        self.dense_cost = Dense(self.num_scatterer*self.max_cand, activation=None, name='cost')
+        self.dense_prob = Dense(2*(self.time-self.warm_up_length)*self.num_scatterer*self.max_cand, activation=None)
+        self.drop_prob_reshape = Dropout(self.droprate)
+        self.dense_prob_final = Dense(2, activation='softmax')
+
+    def my_leaky_relu(self, x):
+        return tf.nn.leaky_relu(x, alpha=0.01)
+
+    def my_softplus(self, x):
+        beta = tf.constant(2, dtype='float64')
+        softplus = tf.math.multiply(
+            tf.constant(1/2, dtype='float64'),
+            tf.math.log(
+                tf.math.add(
+                    tf.constant(1, dtype='float64'),
+                    tf.math.exp(
+                        tf.math.multiply(beta, x)
+                    )
+                )
+            )
+        )
+        return softplus
+
+    def reshape(self, predicted, cost, prob, inputs):
+        inputs = _reshape(
+            inputs,
+            self.time,
+            self.warm_up_length,
+            self.num_scatterer,
+            self.max_cand,
+            prob=False
+        )
+        predicted = _reshape(
+            predicted,
+            self.time,
+            self.warm_up_length,
+            self.num_scatterer,
+            self.max_cand,
+            prob=False
+        )
+        cost = _reshape(
+            cost,
+            self.time,
+            self.warm_up_length,
+            self.num_scatterer,
+            self.max_cand,
+            prob=False
+        )
+        prob = _reshape(
+            prob,
+            self.time,
+            self.warm_up_length,
+            self.num_scatterer,
+            self.max_cand,
+            prob=True
+        )
+        return predicted, cost, prob, inputs
 
     def warmup(self, inputs):
         # inputs.shape => (batch, time, features)
         # x.shape => (batch, lstm_units)
         x, *state = self.lstm_rnn(inputs)
-        x = self.drop_warm(x)  
+        #x = self.drop_warm(x)  
         # predictions.shape => (batch, features)
         prediction = self.dense_warm(x)
         return prediction, state, x
@@ -77,14 +135,26 @@ class Feedback(Model):
         predictions = tf.stack(predictions)
         # predictions.shape => (batch, time, features)
         predictions = tf.transpose(predictions, [1, 0, 2])
-
-        candidate_tensor = self.drop_candidate(inputs[:,:self.warm_up_length-1])
+        candidate_tensor = inputs[:,:self.warm_up_length-1]
+        if training:
+            candidate_tensor = self.drop_candidate(candidate_tensor)
         candidate_tensor = self.dense_candidate(candidate_tensor)
         candidate_tensor = self.flatten(candidate_tensor)
         candidate_tensor = self.concat([warm_up_lstm_output, candidate_tensor])
-        candidate_tensor = self.drop_concat(candidate_tensor)
+        if training:
+            candidate_tensor = self.drop_concat(candidate_tensor)
         candidate_tensor = self.dense_concat(candidate_tensor)
         candidate_prob = self.dense_prob(candidate_tensor)
         candidate_cost = self.dense_cost(candidate_tensor)
+
+        predictions, candidate_cost, candidate_prob, inputs_ = self.reshape(
+            predictions,
+            candidate_cost,
+            candidate_prob,
+            inputs_
+        )
+        if training:
+            candidate_prob = self.drop_prob_reshape(candidate_prob)
+        candidate_prob = self.dense_prob_final(candidate_prob)
 
         return predictions, candidate_cost, candidate_prob, inputs_
