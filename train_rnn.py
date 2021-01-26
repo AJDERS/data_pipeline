@@ -33,8 +33,11 @@ class Compiler():
     def __init__(self, data_folder_path, config_path):
         self.config = configparser.ConfigParser()
         self.config.read(config_path)
+        print(f'config_path: {config_path}')
+        print(f'dir: {os.getcwd()}')
         self.config_path = config_path
-        self.config_name = self.config_path.split('/')[-1].split('.')[0]
+        self.output_dir = '/work3/ajepe'
+        self.config_name = '.'.join(self.config_path.split('/')[-1].split('.')[:-1])
         self.data_folder_path = data_folder_path
         self.train_path = os.path.join(self.data_folder_path, 'training')
         self.valid_path = os.path.join(self.data_folder_path, 'validation')
@@ -111,10 +114,10 @@ class Compiler():
     def _make_logs(self):
         now = datetime.now()
         self.dt_string = now.strftime("%Y%m%d-%H%M%S")
-        os.mkdir(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}')
-        copyfile(self.config_path, f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/{self.config_name}.ini')
+        os.mkdir(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}')
+        copyfile(self.config_path, f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/{self.config_name}.ini')
         logging.basicConfig(
-                    filename=f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.log',
+                    filename=f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.log',
                     level=logging.INFO
         )
 
@@ -263,7 +266,7 @@ class Compiler():
             for step in tqdm(range(steps_per_epoch)):
                 x_batch, y_batch = next(self.train_gen)
                 loss = self.train_step(x_batch, y_batch)
-            self.history['loss'].append(loss)
+            self.history['loss'].append(loss.numpy())
             print('Loss at end of epoch: ' + str(loss))
 
             steps_per_epoch_val= int(self.num_data_val / self.batch_size)
@@ -272,7 +275,7 @@ class Compiler():
                 val_loss = self.test_step(x_batch, y_batch, epoch)
             print('Validation loss at end of epoch: ' + str(val_loss))
             continue_training = self._callbacks(val_loss, epoch)
-            self.history['val_loss'].append(val_loss)
+            self.history['val_loss'].append(val_loss.numpy())
             self._log_loss(loss, val_loss)
             if not continue_training:
                 break
@@ -353,22 +356,23 @@ class Compiler():
         if epoch+1 % 50 == 0:
             self.evaluate(epoch=epoch)
         if not self.patience_decay:
-            if (epoch+1) % self.lr_decay_time == 0:
-                old_lr = self.learning_rate
-                self.learning_rate *= self.lr_decay_rate
-                self.optimizer.lr.assign(self.learning_rate)
-                print(f'Updated learning rate from {old_lr} to {self.learning_rate}.')
+            if not self.lr_decay_time == 0:
+                if (epoch+1) % self.lr_decay_time == 0:
+                    old_lr = self.learning_rate
+                    self.learning_rate *= self.lr_decay_rate
+                    self.optimizer.lr.assign(self.learning_rate)
+                    print(f'Updated learning rate from {old_lr} to {self.learning_rate}.')
         try:
             min(self.history['val_loss'])
         except ValueError:
             if self.with_checkpoints:
-                self.model.save_weights(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
+                self.model.save_weights(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
             self.patience = 0
             return True
 
         if loss < min(self.history['val_loss']):
             if self.with_checkpoints:
-                self.model.save_weights(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
+                self.model.save_weights(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
             self.patience = 0
             return True
         elif self.patience > self.patience_thres:
@@ -412,7 +416,7 @@ class Compiler():
             plt.ylabel(f'{key}')
             plt.xlabel('epoch')
             plt.legend(['train', 'test'], loc='upper left')
-            plt.savefig(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/{key}_{self.dt_string}.png')
+            plt.savefig(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/{key}_{self.dt_string}.png')
 
     def _in_frame(self, coords):
         bools = []
@@ -485,7 +489,7 @@ class Compiler():
             init_func=_update(chosen_candidates, predicted_candidates, y_actual, 0)
         )  
         writer = PillowWriter(fps=self.time)
-        ani.save(f"output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/selection_{self.dt_string}_{epoch}.gif", writer=writer) 
+        ani.save(f"{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/selection_{self.dt_string}_{epoch}.gif", writer=writer) 
 
     def _pick_candidates(self, predictions, candidate_cost, candidate_prob, inputs_, y_actual, epoch=None):
         chosen_candidates = np.full(
@@ -556,8 +560,8 @@ class Compiler():
     def compile_and_fit(self):
         history = self.training_loop()
         df = pd.DataFrame.from_dict(history)
-        df.to_csv(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/history_{self.dt_string}.csv')
-        self.model.save_weights(f'output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.h5')
+        df.to_csv(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/history_{self.dt_string}.csv')
+        self.model.save_weights(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.h5')
         backend.clear_session()
         self.illustrate_history(history)
         return history
