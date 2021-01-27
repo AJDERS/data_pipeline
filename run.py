@@ -1,17 +1,16 @@
 import os
-from util import prepare_for_runs
+import sys
+import argparse
 from train_rnn import Compiler
 
-def main():
-    prepare_for_runs.main()
-    configs = [f for f in os.listdir('config/active_configs') if os.path.isfile(os.path.join('config/active_configs', f))]
-    for config in configs:
-        if config == '__init__.py':
-            continue
-        print(config)
-        C = Compiler('storage', os.path.join('config/active_configs', config))
-        C.compile_and_fit()
-        C.evaluate()
+def main(args):
+    parser = argparse.ArgumentParser(description="Input config path.")
+    parser.add_argument("-c", '--config')
+    args = parser.parse_args(args)
+    config = args.config
+    C = Compiler('storage', config)
+    C.compile_and_fit()
+    C.evaluate()
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])
