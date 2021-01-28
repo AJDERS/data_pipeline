@@ -45,6 +45,9 @@ class CandidateTrackGenerator:
         for b in range(self.batch_size):
             for s in range(self.scatterer):
                 candidates = candidate_tracks[b,s]
+                if len(candidates) != self.max_cand:
+                    for i in range(self.max_cand-len(candidates)):
+                        candidates.append(np.full((self.time, 2), -1.0))
                 candidate_tracks[b,s] = random.sample(candidates, len(candidates))
         return candidate_tracks
 

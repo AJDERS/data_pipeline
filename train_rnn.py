@@ -36,7 +36,7 @@ class Compiler():
         print(f'config_path: {config_path}')
         print(f'dir: {os.getcwd()}')
         self.config_path = config_path
-        self.output_dir = '/work3/ajepe'
+        self.output_dir = ''#'/work3/ajepe/'
         self.config_name = '.'.join(self.config_path.split('/')[-1].split('.')[:-1])
         self.data_folder_path = data_folder_path
         self.train_path = os.path.join(self.data_folder_path, 'training')
@@ -81,6 +81,7 @@ class Compiler():
         self.valid_Y = None
         self.eval_X = None
         self.eval_Y = None
+        self.do_evaluation = False
         self.loaded_model = False
         self.fitted = False
         self.model_compiled = False
@@ -114,10 +115,10 @@ class Compiler():
     def _make_logs(self):
         now = datetime.now()
         self.dt_string = now.strftime("%Y%m%d-%H%M%S")
-        os.mkdir(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}')
-        copyfile(self.config_path, f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/{self.config_name}.ini')
+        os.mkdir(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}')
+        copyfile(self.config_path, f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/{self.config_name}.ini')
         logging.basicConfig(
-                    filename=f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.log',
+                    filename=f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.log',
                     level=logging.INFO
         )
 
@@ -204,18 +205,28 @@ class Compiler():
             y = self._cap_ground_truth(y)
         Y = tf.squeeze(tf.transpose(y, (0, 1, 3, 2, 4)))
         y_actual = Y[:,:,self.warm_up_length:]
-        #y_normed = self.normalizer.tanh_normalization(y_actual)
         X = self._make_tensors(window_data)
-        #self.X_ = self._reshape(X)
-        #self.X = self.normalizer.tanh_normalization(X)
+        if self.class_name == 'TrackPicker':
+            y_actual = self.get_best_track(window_data, Y)
         with tf.GradientTape() as tape:
             tape.watch(X)#tape.watch(self.X)
             logits = self.model.call(X, training=True)#self.model.call(self.X)
-            #print(self._reshape(logits[0])[0,:,0,0])
-            #print(self._reshape(logits[3])[0,5:,0,0])
             loss = self.custom_loss(y_actual, logits)#self.custom_loss(y_normed, logits)
         grads = tape.gradient(loss, self.model.trainable_weights)
         self.optimizer.apply_gradients(zip(grads, self.model.trainable_weights))
+        if self.do_evaluation:
+            predictions, candidate_cost, candidate_prob, inputs_ = logits
+            chosen_candidates, predicted_candidates = self._pick_candidates(predictions, candidate_cost, candidate_prob, inputs_, y_actual)
+            predicted = np.add(chosen_candidates, predicted_candidates)
+            mean_squared_error = tf.reduce_mean(tf.losses.mean_squared_error(predicted, y_actual))
+            logging.info(f'Mean square error of candidate selection at end of {epoch}: {mean_squared_error}')
+            correct = 0
+            for b in range(self.batch_size):
+                for s in range(self.num_scat):
+                    if np.array_equal(predicted[b,s], y_actual[b,s]):
+                        correct += 1
+            self.history_acc['val_acc'].append(correct/(self.batch_size*self.num_scat))
+            self.do_evaluation = False
         return loss
 
     def test_step(self, x, y, epoch):
@@ -226,11 +237,23 @@ class Compiler():
             y = self._cap_ground_truth(y)
         Y = tf.squeeze(tf.transpose(y, (0, 1, 3, 2, 4)))
         y_actual = Y[:,:,self.warm_up_length:]
-        #y_normed = self.normalizer.tanh_normalization(y_actual)
         X = self._make_tensors(window_data)
-        #self.X_ = self._reshape(X)
-        #self.X = self.normalizer.tanh_normalization(X)
+        if self.class_name == 'TrackPicker':
+            y_actual = self.get_best_track(window_data, Y)
         logits = self.model.call(X, training=False) #self.model.call(self.X, training=False)
+        if self.do_evaluation:
+            predictions, candidate_cost, candidate_prob, inputs_ = logits
+            chosen_candidates, predicted_candidates = self._pick_candidates(predictions, candidate_cost, candidate_prob, inputs_, y_actual)
+            predicted = np.add(chosen_candidates, predicted_candidates)
+            mean_squared_error = tf.reduce_mean(tf.losses.mean_squared_error(predicted, y_actual))
+            logging.info(f'Mean square error of candidate selection at end of {epoch}: {mean_squared_error}')
+            correct = 0
+            for b in range(self.batch_size):
+                for s in range(self.num_scat):
+                    if np.array_equal(predicted[b,s], y_actual[b,s]):
+                        correct += 1
+            self.history_acc['val_acc'].append(correct/(self.batch_size*self.num_scat))
+            self.do_evaluation = False
         loss = self.custom_loss(y_actual, logits)#self.custom_loss(y_normed, logits)
         return loss
 
@@ -249,9 +272,12 @@ class Compiler():
             self.optimizer = Adadelta(learning_rate=self.learning_rate)
         else:
             self.optimizer = Adam(learning_rate=self.learning_rate/100)
-        self.history = {}
-        self.history['loss'] = []
-        self.history['val_loss'] = []
+        self.history_loss = {}
+        self.history_acc = {}
+        self.history_loss['loss'] = []
+        self.history_loss['val_loss'] = []
+        self.history_acc['acc'] = []
+        self.history_acc['val_acc'] = []
         continue_training = True
 
         # Only for testing
@@ -262,24 +288,31 @@ class Compiler():
 
         for epoch in range(epochs):
             print(f'Start of epoch: {epoch}/{epochs}')
+
+            # Training cycle
             steps_per_epoch = int(self.num_data_train / self.batch_size)
             for step in tqdm(range(steps_per_epoch)):
+                if step == steps_per_epoch:
+                    self.do_evaluation = True
                 x_batch, y_batch = next(self.train_gen)
                 loss = self.train_step(x_batch, y_batch)
-            self.history['loss'].append(loss.numpy())
+            self.history_loss['loss'].append(loss.numpy())
             print('Loss at end of epoch: ' + str(loss))
 
+            # Test cycle
             steps_per_epoch_val= int(self.num_data_val / self.batch_size)
             for step in tqdm(range(steps_per_epoch_val)):
+                if step == steps_per_epoch_val:
+                    self.do_evaluation = True
                 x_batch, y_batch = next(self.val_gen)
                 val_loss = self.test_step(x_batch, y_batch, epoch)
             print('Validation loss at end of epoch: ' + str(val_loss))
             continue_training = self._callbacks(val_loss, epoch)
-            self.history['val_loss'].append(val_loss.numpy())
+            self.history_loss['val_loss'].append(val_loss.numpy())
             self._log_loss(loss, val_loss)
             if not continue_training:
                 break
-        return self.history
+        return self.history_loss
 
     def _make_tensors(self, window_data):
         X = np.full((self.batch_size, self.time, 2 * self.num_scat * self.max_cand), -1.0)
@@ -292,12 +325,43 @@ class Compiler():
         X = tf.convert_to_tensor(X)
         return X
 
+    def get_best_track(self, x, y):
+        best = np.zeros((self.batch_size, self.num_scat, self.max_cand))
+        for b in range(self.batch_size):
+            for s in range(self.num_scat):
+                norms = []
+                found = False
+                stop = False
+                for c in range(self.max_cand):
+                    if not found:
+                        norm = np.linalg.norm(tf.math.subtract(x[b,s][c], y[b,s]))
+                        norms.append((c,norm))
+                        if norm == 0.0:
+                            best[b,s,c] = 1.0
+                            found = True
+                        else:
+                            best[b,s,c] = 0.0
+                    else:
+                        pass
+                if not found:
+                    c = sorted(norms, key=lambda x: x[1])[0][0]
+                    best[b,s,c] = 1.0
+        return best
+
     def custom_loss(self, y_actual, y_predicted):
         if self.class_name == 'SimpleRNN':
             return self.custom_loss_simple(y_actual, y_predicted)
         if self.class_name == 'Feedback':
             return self.custom_loss_test(y_actual, y_predicted)
-            #return self.custom_loss_feedback(y_actual, y_predicted)
+        if self.class_name == 'TrackPicker':
+            return self.custom_loss_picker(y_actual, y_predicted)
+
+
+    def custom_loss_picker(self, y_actual, y_predicted):
+        
+        ent = tf.losses.categorical_crossentropy(y_actual, y_predicted)
+        sums = tf.reduce_sum(ent)
+        return sums
 
     def custom_loss_test(self, y_actual, y_predicted):
         """
@@ -363,16 +427,16 @@ class Compiler():
                     self.optimizer.lr.assign(self.learning_rate)
                     print(f'Updated learning rate from {old_lr} to {self.learning_rate}.')
         try:
-            min(self.history['val_loss'])
+            min(self.history_loss['val_loss'])
         except ValueError:
             if self.with_checkpoints:
-                self.model.save_weights(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
+                self.model.save_weights(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
             self.patience = 0
             return True
 
-        if loss < min(self.history['val_loss']):
+        if loss < min(self.history_loss['val_loss']):
             if self.with_checkpoints:
-                self.model.save_weights(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
+                self.model.save_weights(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}_{epoch}.h5')
             self.patience = 0
             return True
         elif self.patience > self.patience_thres:
@@ -416,7 +480,7 @@ class Compiler():
             plt.ylabel(f'{key}')
             plt.xlabel('epoch')
             plt.legend(['train', 'test'], loc='upper left')
-            plt.savefig(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/{key}_{self.dt_string}.png')
+            plt.savefig(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/{key}_{self.dt_string}.png')
 
     def _in_frame(self, coords):
         bools = []
@@ -489,7 +553,7 @@ class Compiler():
             init_func=_update(chosen_candidates, predicted_candidates, y_actual, 0)
         )  
         writer = PillowWriter(fps=self.time)
-        ani.save(f"{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/selection_{self.dt_string}_{epoch}.gif", writer=writer) 
+        ani.save(f"{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/selection_{self.dt_string}_{epoch}.gif", writer=writer) 
 
     def _pick_candidates(self, predictions, candidate_cost, candidate_prob, inputs_, y_actual, epoch=None):
         chosen_candidates = np.full(
@@ -560,8 +624,10 @@ class Compiler():
     def compile_and_fit(self):
         history = self.training_loop()
         df = pd.DataFrame.from_dict(history)
-        df.to_csv(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/history_{self.dt_string}.csv')
-        self.model.save_weights(f'{self.output_dir}/output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.h5')
+        df.to_csv(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/history_{self.dt_string}.csv')
+        df = pd.DataFrame.from_dict(self.history_acc)
+        df.to_csv(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/history_{self.dt_string}.csv')
+        self.model.save_weights(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.h5')
         backend.clear_session()
         self.illustrate_history(history)
         return history
