@@ -200,14 +200,16 @@ class Compiler():
     def train_step(self, x, y):
         # Make candidate tracks.
         # x_batch: (batch_size, num_scatterer, coords, time, channel)
-        window_data = self.candidate_track_generator.make_candidate_tracks(x)
-        if self.cap_values:
-            y = self._cap_ground_truth(y)
-        Y = tf.squeeze(tf.transpose(y, (0, 1, 3, 2, 4)))
-        y_actual = Y[:,:,self.warm_up_length:]
-        X = self._make_tensors(window_data)
-        if self.class_name == 'TrackPicker':
-            y_actual = self.get_best_track(window_data, Y)
+        if self.class_name == 'Feedback':
+            window_data = self.candidate_track_generator.make_candidate_tracks(x)
+            if self.cap_values:
+                y = self._cap_ground_truth(y)
+            Y = tf.squeeze(tf.transpose(y, (0, 1, 3, 2, 4)))
+            y_actual = Y[:,:,self.warm_up_length:]
+            X = self._make_tensors(window_data)
+        if self.class_name == 'DetectionPicker':
+            y_actual = y
+            X = self.candidate_track_generator.make_candidate_tracks(x)
         with tf.GradientTape() as tape:
             tape.watch(X)#tape.watch(self.X)
             logits = self.model.call(X, training=True)#self.model.call(self.X)
@@ -219,27 +221,31 @@ class Compiler():
             chosen_candidates, predicted_candidates = self._pick_candidates(predictions, candidate_cost, candidate_prob, inputs_, y_actual)
             predicted = np.add(chosen_candidates, predicted_candidates)
             mean_squared_error = tf.reduce_mean(tf.losses.mean_squared_error(predicted, y_actual))
-            logging.info(f'Mean square error of candidate selection at end of {epoch}: {mean_squared_error}')
+            logging.info(f'Mean square error of candidate selection: {mean_squared_error}')
             correct = 0
             for b in range(self.batch_size):
                 for s in range(self.num_scat):
                     if np.array_equal(predicted[b,s], y_actual[b,s]):
                         correct += 1
-            self.history_acc['val_acc'].append(correct/(self.batch_size*self.num_scat))
+            print(f'Training accuracy: {correct/(self.batch_size*self.num_scat)}')
+            self.history_acc['acc'].append(correct/(self.batch_size*self.num_scat))
             self.do_evaluation = False
         return loss
 
     def test_step(self, x, y, epoch):
         # Make candidate tracks.
         # x_batch: (batch_size, num_scatterer, coords, time, channel)
-        window_data = self.candidate_track_generator.make_candidate_tracks(x)
-        if self.cap_values:
-            y = self._cap_ground_truth(y)
-        Y = tf.squeeze(tf.transpose(y, (0, 1, 3, 2, 4)))
-        y_actual = Y[:,:,self.warm_up_length:]
-        X = self._make_tensors(window_data)
-        if self.class_name == 'TrackPicker':
-            y_actual = self.get_best_track(window_data, Y)
+        if self.class_name == 'Feedback':
+            window_data = self.candidate_track_generator.make_candidate_tracks(x)
+            if self.cap_values:
+                y = self._cap_ground_truth(y)
+            Y = tf.squeeze(tf.transpose(y, (0, 1, 3, 2, 4)))
+            y_actual = Y[:,:,self.warm_up_length:]
+            X = self._make_tensors(window_data)
+        if self.class_name == 'DetectionPicker':
+            y_actual = y
+            self.config['RNN']['MaximalCandidate'] = 1
+            X = self.candidate_track_generator.make_candidate_tracks(x)
         logits = self.model.call(X, training=False) #self.model.call(self.X, training=False)
         if self.do_evaluation:
             predictions, candidate_cost, candidate_prob, inputs_ = logits
@@ -252,6 +258,7 @@ class Compiler():
                 for s in range(self.num_scat):
                     if np.array_equal(predicted[b,s], y_actual[b,s]):
                         correct += 1
+            print(f'Validation accuracy: {correct/(self.batch_size*self.num_scat)}')
             self.history_acc['val_acc'].append(correct/(self.batch_size*self.num_scat))
             self.do_evaluation = False
         loss = self.custom_loss(y_actual, logits)#self.custom_loss(y_normed, logits)
@@ -292,7 +299,7 @@ class Compiler():
             # Training cycle
             steps_per_epoch = int(self.num_data_train / self.batch_size)
             for step in tqdm(range(steps_per_epoch)):
-                if step == steps_per_epoch:
+                if step == steps_per_epoch-1:
                     self.do_evaluation = True
                 x_batch, y_batch = next(self.train_gen)
                 loss = self.train_step(x_batch, y_batch)
@@ -302,7 +309,7 @@ class Compiler():
             # Test cycle
             steps_per_epoch_val= int(self.num_data_val / self.batch_size)
             for step in tqdm(range(steps_per_epoch_val)):
-                if step == steps_per_epoch_val:
+                if step == steps_per_epoch_val-1:
                     self.do_evaluation = True
                 x_batch, y_batch = next(self.val_gen)
                 val_loss = self.test_step(x_batch, y_batch, epoch)
@@ -353,7 +360,7 @@ class Compiler():
             return self.custom_loss_simple(y_actual, y_predicted)
         if self.class_name == 'Feedback':
             return self.custom_loss_test(y_actual, y_predicted)
-        if self.class_name == 'TrackPicker':
+        if self.class_name == 'DetectionPicker':
             return self.custom_loss_picker(y_actual, y_predicted)
 
 
@@ -587,6 +594,9 @@ class Compiler():
                         costs.append((c, candidate_cost[b,s,c,0]))
                         logging.info(f'Association probability: \n {candidate_prob[b,:,s,c]} \n')
                         probs.append((c, candidate_prob[b,:,s,c]))
+                    else:
+                        costs.append((c, np.inf))
+                        probs.append((c, np.inf))
                 cost_choice = sorted(costs, key=lambda x: x[1])
                 chosen = False
                 for i in range((self.time-self.warm_up_length)*2, 5, -1):
@@ -624,9 +634,9 @@ class Compiler():
     def compile_and_fit(self):
         history = self.training_loop()
         df = pd.DataFrame.from_dict(history)
-        df.to_csv(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/history_{self.dt_string}.csv')
+        df.to_csv(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/history_loss_{self.dt_string}.csv')
         df = pd.DataFrame.from_dict(self.history_acc)
-        df.to_csv(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/history_{self.dt_string}.csv')
+        df.to_csv(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/history_acc_{self.dt_string}.csv')
         self.model.save_weights(f'{self.output_dir}output/rnn_checkpoints/{self.config_name}_model_{self.dt_string}/model_{self.dt_string}.h5')
         backend.clear_session()
         self.illustrate_history(history)
